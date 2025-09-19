@@ -1,128 +1,85 @@
 import pygame
-import os
+import sys
 
 class ControlPanel:
-    def __init__(self, width, height):
-        current_dir = os.path.dirname(__file__)
-        picture_dir = os.path.join(current_dir, "..", "Picture")
-        self.background_image = pygame.image.load(os.path.join(picture_dir, "selectbackground.jpg"))
-        self.background_image = pygame.transform.scale(self.background_image, (300, 500))
-        self.font = pygame.font.Font('freesansbold.ttf', 20)
+    def __init__(self, width=300, height=500):
+        # Kích thước panel
+        self.width = width
+        self.height = height
 
-        # Algorithm menu
-        self.algo_list = ["BFS", "DFS", "IDS", "A*", "Greedy", "UCS"]
-        self.selected_algo = "BFS"
-        self.show_algo_menu = False
+        # Màu sắc
+        self.WHITE = (255, 255, 255)
+        self.BLACK = (0, 0, 0)
+        self.GRAY = (200, 200, 200)
+        self.BLUE = (0, 102, 204)
 
-        # Difficulty
-        self.num_chasers = 1
-        self.maze_width = 35
-        self.maze_height = 25
+        # Font
+        self.font = pygame.font.SysFont(None, 28)
 
+        # Vị trí panel
+        self.rect = pygame.Rect(700, 0, self.width, self.height)
+
+        # Nút
+        self.buttons = {
+            "Auto Play": pygame.Rect(750, 50, 200, 50),
+            "AI Play": pygame.Rect(750, 150, 200, 50),
+            "Reset": pygame.Rect(750, 250, 200, 50),
+            "Exit": pygame.Rect(750, 350, 200, 50)
+        }
+
+        # Trạng thái phím di chuyển
+        self.keys_pressed = {
+            pygame.K_UP: False,
+            pygame.K_DOWN: False,
+            pygame.K_LEFT: False,
+            pygame.K_RIGHT: False,
+        }
+
+    # ============ VẼ NÚT ============
+    def draw_button(self, screen, rect, text, color_bg, color_text=None):
+        if color_text is None:
+            color_text = self.WHITE
+        pygame.draw.rect(screen, color_bg, rect)
+        text_render = self.font.render(text, True, color_text)
+        text_rect = text_render.get_rect(center=rect.center)
+        screen.blit(text_render, text_rect)
+
+    # ============ HIỂN THỊ PANEL ============
     def display(self, screen):
-        x = 700
-        screen.blit(self.background_image, (x, 0))
-        text_color = (255, 255, 255)
+        # Vẽ nền panel
+        pygame.draw.rect(screen, self.GRAY, self.rect)
 
-        title = self.font.render("Control Panel", True, text_color)
-        screen.blit(title, (x + 20, 10))
+        # Vẽ các nút
+        self.draw_button(screen, self.buttons["Auto Play"], "Auto Play", self.BLUE)
+        self.draw_button(screen, self.buttons["AI Play"], "AI Play", self.BLUE)
+        self.draw_button(screen, self.buttons["Reset"], "Reset", self.BLUE)
+        self.draw_button(screen, self.buttons["Exit"], "Exit", self.BLUE)
 
-        # Algorithm dropdown
-        algo_button = pygame.Rect(x+20, 50, 200, 30)
-        pygame.draw.rect(screen, (0,153,204), algo_button)
-        txt = self.font.render(f"Algorithm: {self.selected_algo}", True, (0,0,0))
-        screen.blit(txt, (x+25, 55))
+    # ============ XỬ LÝ SỰ KIỆN ============
+    def handle_event(self, event, maze, ai):
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
 
-        if self.show_algo_menu:
-            for i, name in enumerate(self.algo_list):
-                opt_rect = pygame.Rect(x+20, 80+i*30, 200, 30)
-                pygame.draw.rect(screen, (100,100,100), opt_rect)
-                opt_txt = self.font.render(name, True, (255,255,255))
-                screen.blit(opt_txt, (x+25, 85+i*30))
+        elif event.type == pygame.KEYDOWN:
+            if event.key in self.keys_pressed:
+                self.keys_pressed[event.key] = True
 
-        # Number of chasers
-        nch_txt = self.font.render(f"Chasers: {self.num_chasers}", True, text_color)
-        screen.blit(nch_txt, (x + 20, 220))
-        plus_rect = pygame.Rect(x+150, 220, 30, 30)
-        minus_rect = pygame.Rect(x+190, 220, 30, 30)
-        pygame.draw.rect(screen, (0,153,204), plus_rect)
-        pygame.draw.rect(screen, (0,153,204), minus_rect)
-        screen.blit(self.font.render("+", True, (0,0,0)), (x+158, 225))
-        screen.blit(self.font.render("-", True, (0,0,0)), (x+198, 225))
+        elif event.type == pygame.KEYUP:
+            if event.key in self.keys_pressed:
+                self.keys_pressed[event.key] = False
 
-        # Maze size
-        size_txt = self.font.render(f"Maze: {self.maze_width}x{self.maze_height}", True, text_color)
-        screen.blit(size_txt, (x+20, 270))
-        plus2_rect = pygame.Rect(x+150, 270, 30, 30)
-        minus2_rect = pygame.Rect(x+190, 270, 30, 30)
-        pygame.draw.rect(screen, (0,153,204), plus2_rect)
-        pygame.draw.rect(screen, (0,153,204), minus2_rect)
-        screen.blit(self.font.render("+", True, (0,0,0)), (x+158, 275))
-        screen.blit(self.font.render("-", True, (0,0,0)), (x+198, 275))
+        return maze, ai, None
 
-        # Reset & Exit
-        reset_text = self.font.render("Reset Maze", True, text_color)
-        exit_text = self.font.render("Exit", True, text_color)
-        buttons = [
-            (750, 340, 200, 40, reset_text, "reset_btn"),
-            (750, 400, 200, 40, exit_text, "exit_btn"),
-        ]
-        mouse_x, mouse_y = pygame.mouse.get_pos()
-        for bx, by, bw, bh, text, action in buttons:
-            color = (0,153,204)
-            if bx < mouse_x < bx + bw and by < mouse_y < by + bh:
-                color = (0,102,153)
-            pygame.draw.rect(screen, color, (bx, by, bw, bh))
-            pygame.draw.rect(screen, (255,255,255), (bx, by, bw, bh), 3)
-            text_rect = text.get_rect(center=(bx + bw // 2, by + bh // 2))
-            screen.blit(text, text_rect)
+    # ============ XỬ LÝ DI CHUYỂN LIÊN TỤC ============
+    def handle_continuous_movement(self, maze, ai):
+        if self.keys_pressed[pygame.K_UP]:
+            ai.move_towards(ai.x, ai.y - 1)
+        if self.keys_pressed[pygame.K_DOWN]:
+            ai.move_towards(ai.x, ai.y + 1)
+        if self.keys_pressed[pygame.K_LEFT]:
+            ai.move_towards(ai.x - 1, ai.y)
+        if self.keys_pressed[pygame.K_RIGHT]:
+            ai.move_towards(ai.x + 1, ai.y)
 
-    def handle_event(self, event):
-        actions = {}
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            mx, my = pygame.mouse.get_pos()
-            x = 700
-            # Algorithm button
-            algo_button = pygame.Rect(x+20, 50, 200, 30)
-            if algo_button.collidepoint((mx,my)):
-                self.show_algo_menu = not self.show_algo_menu
-                return actions
-            if self.show_algo_menu:
-                for i, name in enumerate(self.algo_list):
-                    opt_rect = pygame.Rect(x+20, 80+i*30, 200, 30)
-                    if opt_rect.collidepoint((mx,my)):
-                        self.selected_algo = name
-                        self.show_algo_menu = False
-                        actions["algo"] = name
-                        return actions
-
-            # Chasers
-            if pygame.Rect(x+150, 220, 30, 30).collidepoint((mx,my)):
-                self.num_chasers = min(10, self.num_chasers+1)
-                actions["num_chasers"] = self.num_chasers
-                return actions
-            if pygame.Rect(x+190, 220, 30, 30).collidepoint((mx,my)):
-                self.num_chasers = max(0, self.num_chasers-1)
-                actions["num_chasers"] = self.num_chasers
-                return actions
-
-            # Maze size
-            if pygame.Rect(x+150, 270, 30, 30).collidepoint((mx,my)):
-                self.maze_width = min(151, self.maze_width+4)
-                self.maze_height = min(101, self.maze_height+4)
-                actions["maze_size"] = (self.maze_width, self.maze_height)
-                return actions
-            if pygame.Rect(x+190, 270, 30, 30).collidepoint((mx,my)):
-                self.maze_width = max(15, self.maze_width-4)
-                self.maze_height = max(11, self.maze_height-4)
-                actions["maze_size"] = (self.maze_width, self.maze_height)
-                return actions
-
-            # Reset & Exit
-            if 750 <= mx <= 950 and 340 <= my <= 380:
-                actions["reset_btn"] = True
-                return actions
-            if 750 <= mx <= 950 and 400 <= my <= 440:
-                actions["exit_btn"] = True
-                return actions
-        return actions
+        return maze, ai

@@ -2,28 +2,18 @@ import pygame
 import sys
 import subprocess
 import os
-
 # Khởi tạo Pygame
 pygame.init()
-
-# Lấy thư mục hiện tại (nơi chứa file Welcome.py)
-current_dir = os.path.dirname(__file__)
-
-# Đường dẫn file nhạc và ảnh
-music_path = os.path.join(current_dir, "..", "Music", "nenstart.mp3")
-image_path = os.path.join(current_dir, "..", "Picture", "wellcome.jpg")
-main_py_path = os.path.join(current_dir, "Main.py")
-
+# Đường dẫn đến file nhạc   
+music_path = r"D:\game1\GameTTNT\src\Music\nenstart.mp3"
 # Kích thước màn hình
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("WELCOME THE MAZE GAME")
-
 # Phát nhạc
 pygame.mixer.music.load(music_path)
 pygame.mixer.music.play()
-
 # Màu sắc
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -31,12 +21,12 @@ BLACK = (0, 0, 0)
 # Font
 font = pygame.font.SysFont(None, 36)
 
-# Định nghĩa biến start_button
+# Định nghĩa biến start_button ở đây để trở thành biến toàn cục
 start_button = pygame.Rect(300, 300, 200, 50)
 
 def draw_start_screen():
     # Load hình nền
-    background = pygame.image.load(image_path).convert()
+    background = pygame.image.load(r"D:\game1\GameTTNT\src\Picture\wellcome.jpg").convert()
     background = pygame.transform.scale(background, (SCREEN_WIDTH, SCREEN_HEIGHT))
     
     # Vẽ hình nền
@@ -57,11 +47,18 @@ def draw_start_screen():
 def main_game():
     running = True
     while running:
+        # Xử lý sự kiện
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
 
+        # Cập nhật trạng thái của trò chơi
+        # Điều này bao gồm việc vẽ mê cung, xử lý di chuyển của nhân vật, xử lý va chạm, vv.
+
+        # Vẽ màn hình
         screen.fill(WHITE)
+        # Vẽ mê cung, nhân vật, vv. ở đây
+
         pygame.display.flip()
 
 def main():
@@ -73,7 +70,10 @@ def main():
                 running = False
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if start_button.collidepoint(event.pos):
+                    # Chạy tệp main.py
+                    main_py_path = os.path.join(os.path.dirname(__file__), "main.py")
                     subprocess.Popen(["python", "-u", main_py_path])
+                    # Thoát khỏi tệp hiện tại
                     pygame.quit()
                     sys.exit()
 

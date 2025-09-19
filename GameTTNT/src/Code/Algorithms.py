@@ -1,147 +1,215 @@
-# Algorithms.py
-# Các thuật toán tìm đường: BFS, DFS, IDS, A*, Greedy, UCS (Dijkstra)
-import heapq
-from collections import deque
+from queue import PriorityQueue, deque
 
-def reconstruct_path(came_from, start, goal):
-    path = []
-    cur = goal
-    while cur != start:
-        path.append(cur)
-        cur = came_from.get(cur)
-        if cur is None:
-            return []  # no path
-    path.append(start)
-    path.reverse()
-    return path
-
-# BFS
-def bfs(maze, start=None, goal=None):
-    if start is None:
-        start = (maze.start_x, maze.start_y)
-    if goal is None:
-        goal = (maze.end_x, maze.end_y)
-    frontier = deque([start])
-    came_from = {start: None}
-    while frontier:
-        current = frontier.popleft()
-        if current == goal:
-            return reconstruct_path(came_from, start, goal)
-        for n in maze.get_neighbors(current[0], current[1]):
-            if n not in came_from:
-                came_from[n] = current
-                frontier.append(n)
-    return []
-
-# DFS (iterative, stack)
-def dfs(maze, start=None, goal=None, depth_limit=None):
-    if start is None:
-        start = (maze.start_x, maze.start_y)
-    if goal is None:
-        goal = (maze.end_x, maze.end_y)
-    stack = [(start, [start])]
-    visited = set([start])
-    while stack:
-        current, path = stack.pop()
-        if current == goal:
-            return path
-        # optionally depth-limited
-        if depth_limit is not None and len(path) - 1 >= depth_limit:
-            continue
-        for n in maze.get_neighbors(current[0], current[1]):
-            if n not in visited:
-                visited.add(n)
-                stack.append((n, path + [n]))
-    return []
-
-# IDS (iterative deepening DFS)
-def ids(maze, start=None, goal=None, max_depth=50):
-    if start is None:
-        start = (maze.start_x, maze.start_y)
-    if goal is None:
-        goal = (maze.end_x, maze.end_y)
-    for depth in range(max_depth + 1):
-        path = dfs(maze, start, goal, depth_limit=depth)
-        if path:
-            return path
-    return []
-
-# Heuristic (Manhattan)
+# Heuristic (dùng cho A* và Greedy)
 def heuristic(a, b):
     return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
-# A* (manhattan)
-def astar(maze, start=None, goal=None):
-    if start is None:
-        start = (maze.start_x, maze.start_y)
-    if goal is None:
-        goal = (maze.end_x, maze.end_y)
-    frontier = []
-    heapq.heappush(frontier, (0, start))
+
+# =============================
+#  BFS - Breadth First Search
+# =============================
+def bfs(maze):
+    start = (maze.start_x, maze.start_y)
+    goal = (maze.end_x, maze.end_y)
+
+    queue = deque([start])
+    came_from = {start: None}
+
+    while queue:
+        current = queue.popleft()
+
+        if current == goal:
+            break
+
+        for next in maze.get_neighbors(current[0], current[1]):
+            if next not in came_from:
+                queue.append(next)
+                came_from[next] = current
+
+    return reconstruct_path(came_from, start, goal)
+
+
+# =============================
+#  DFS - Depth First Search
+# =============================
+def dfs(maze):
+    start = (maze.start_x, maze.start_y)
+    goal = (maze.end_x, maze.end_y)
+
+    stack = [start]
+    came_from = {start: None}
+
+    while stack:
+        current = stack.pop()
+
+        if current == goal:
+            break
+
+        for next in maze.get_neighbors(current[0], current[1]):
+            if next not in came_from:
+                stack.append(next)
+                came_from[next] = current
+
+    return reconstruct_path(came_from, start, goal)
+
+
+# =============================
+#  UCS - Uniform Cost Search
+# =============================
+def ucs(maze):
+    start = (maze.start_x, maze.start_y)
+    goal = (maze.end_x, maze.end_y)
+
+    frontier = PriorityQueue()
+    frontier.put((0, start))
     came_from = {start: None}
     cost_so_far = {start: 0}
-    while frontier:
-        _, current = heapq.heappop(frontier)
+
+    while not frontier.empty():
+        _, current = frontier.get()
+
         if current == goal:
-            return reconstruct_path(came_from, start, goal)
-        for n in maze.get_neighbors(current[0], current[1]):
+            break
+
+        for next in maze.get_neighbors(current[0], current[1]):
             new_cost = cost_so_far[current] + 1
-            if n not in cost_so_far or new_cost < cost_so_far[n]:
-                cost_so_far[n] = new_cost
-                priority = new_cost + heuristic(goal, n)
-                heapq.heappush(frontier, (priority, n))
-                came_from[n] = current
-    return []
+            if next not in cost_so_far or new_cost < cost_so_far[next]:
+                cost_so_far[next] = new_cost
+                frontier.put((new_cost, next))
+                came_from[next] = current
 
-# Greedy Best-First (heuristic only)
-def greedy(maze, start=None, goal=None):
-    if start is None:
-        start = (maze.start_x, maze.start_y)
-    if goal is None:
-        goal = (maze.end_x, maze.end_y)
-    frontier = []
-    heapq.heappush(frontier, (heuristic(start, goal), start))
-    came_from = {start: None}
-    visited = set([start])
-    while frontier:
-        _, current = heapq.heappop(frontier)
-        if current == goal:
+    return reconstruct_path(came_from, start, goal)
+
+
+# =============================
+#  IDS - Iterative Deepening Search
+# =============================
+def ids(maze, max_depth=50):
+    start = (maze.start_x, maze.start_y)
+    goal = (maze.end_x, maze.end_y)
+
+    for depth in range(max_depth):
+        found, came_from = dls(maze, start, goal, depth)
+        if found:
             return reconstruct_path(came_from, start, goal)
-        for n in maze.get_neighbors(current[0], current[1]):
-            if n not in visited:
-                visited.add(n)
-                heapq.heappush(frontier, (heuristic(n, goal), n))
-                came_from[n] = current
+
     return []
 
-# UCS (Dijkstra)
-def ucs(maze, start=None, goal=None):
-    if start is None:
-        start = (maze.start_x, maze.start_y)
-    if goal is None:
-        goal = (maze.end_x, maze.end_y)
-    frontier = []
-    heapq.heappush(frontier, (0, start))
+
+def dls(maze, start, goal, depth):
+    stack = [(start, 0)]
+    came_from = {start: None}
+
+    while stack:
+        current, d = stack.pop()
+
+        if current == goal:
+            return True, came_from
+
+        if d < depth:
+            for next in maze.get_neighbors(current[0], current[1]):
+                if next not in came_from:
+                    stack.append((next, d + 1))
+                    came_from[next] = current
+
+    return False, came_from
+
+
+# =============================
+#  Greedy Best-First Search
+# =============================
+def greedy(maze):
+    start = (maze.start_x, maze.start_y)
+    goal = (maze.end_x, maze.end_y)
+
+    frontier = PriorityQueue()
+    frontier.put((heuristic(start, goal), start))
+    came_from = {start: None}
+
+    while not frontier.empty():
+        _, current = frontier.get()
+
+        if current == goal:
+            break
+
+        for next in maze.get_neighbors(current[0], current[1]):
+            if next not in came_from:
+                priority = heuristic(goal, next)
+                frontier.put((priority, next))
+                came_from[next] = current
+
+    return reconstruct_path(came_from, start, goal)
+
+
+# =============================
+#  A* Search
+# =============================
+def astar(maze):
+    start = (maze.start_x, maze.start_y)
+    goal = (maze.end_x, maze.end_y)
+
+    frontier = PriorityQueue()
+    frontier.put((0, start))
     came_from = {start: None}
     cost_so_far = {start: 0}
-    while frontier:
-        cost, current = heapq.heappop(frontier)
-        if current == goal:
-            return reconstruct_path(came_from, start, goal)
-        for n in maze.get_neighbors(current[0], current[1]):
-            new_cost = cost_so_far[current] + 1
-            if n not in cost_so_far or new_cost < cost_so_far[n]:
-                cost_so_far[n] = new_cost
-                heapq.heappush(frontier, (new_cost, n))
-                came_from[n] = current
-    return []
 
-# Map string name -> function
-ALGO_MAP = {
-    "BFS": bfs,
-    "DFS": dfs,
-    "IDS": ids,
-    "A*": astar,
-    "Greedy": greedy,
-    "UCS": ucs
-}
+    while not frontier.empty():
+        _, current = frontier.get()
+
+        if current == goal:
+            break
+
+        for next in maze.get_neighbors(current[0], current[1]):
+            new_cost = cost_so_far[current] + 1
+            if next not in cost_so_far or new_cost < cost_so_far[next]:
+                cost_so_far[next] = new_cost
+                priority = new_cost + heuristic(goal, next)
+                frontier.put((priority, next))
+                came_from[next] = current
+
+    return reconstruct_path(came_from, start, goal)
+
+
+# =============================
+#  Dijkstra
+# =============================
+def dijkstra(maze):
+    start = (maze.start_x, maze.start_y)
+    goal = (maze.end_x, maze.end_y)
+
+    frontier = PriorityQueue()
+    frontier.put((0, start))
+    came_from = {start: None}
+    cost_so_far = {start: 0}
+
+    while not frontier.empty():
+        _, current = frontier.get()
+
+        if current == goal:
+            break
+
+        for next in maze.get_neighbors(current[0], current[1]):
+            new_cost = cost_so_far[current] + 1
+            if next not in cost_so_far or new_cost < cost_so_far[next]:
+                cost_so_far[next] = new_cost
+                frontier.put((new_cost, next))
+                came_from[next] = current
+
+    return reconstruct_path(came_from, start, goal)
+
+
+# =============================
+#  Helper: reconstruct path
+# =============================
+def reconstruct_path(came_from, start, goal):
+    if goal not in came_from:
+        return []
+
+    current = goal
+    path = []
+    while current != start:
+        path.append(current)
+        current = came_from[current]
+    path.append(start)
+    path.reverse()
+    return path

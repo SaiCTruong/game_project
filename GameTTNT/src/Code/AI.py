@@ -1,124 +1,77 @@
-# AI.py
 import pygame
+from Maze import Maze
+from pygame.locals import *
 import threading
-import os
-import random
-from Algorithms import ALGO_MAP
 
-class Player:
-    def __init__(self, maze, x=None, y=None):
+class AI:
+    
+    def __init__(self, maze):
         self.maze = maze
-        self.x = x if x is not None else maze.start_x
-        self.y = y if y is not None else maze.start_y
-        self.path = []
+        self.x, self.y = maze.start_x, maze.start_y
+        self.start_x = maze.start_x  # Lưu trữ vị trí ban đầu của icon theo trục X
+        self.start_y = maze.start_y  # Lưu trữ vị trí ban đầu của icon theo trục Y
+        self.path = []  # Thêm thuộc tính path vào đối tượng AI
+        self.move_history = []  # Lịch sử các bước đã di chuyển
+    def move_towards(self, target_x, target_y):
+        dx = target_x - self.x
+        dy = target_y - self.y
+        if dx != 0:
+            dx //= abs(dx)
+        if dy != 0:
+            dy //= abs(dy)
 
-    def move(self, dx, dy):
-        nx, ny = self.x + dx, self.y + dy
-        if 0 <= nx < self.maze.width and 0 <= ny < self.maze.height and self.maze.grid[ny][nx] == 0:
-            self.x, self.y = nx, ny
+        next_x = self.x + dx
+        next_y = self.y + dy
 
-class Chaser:
-    def __init__(self, maze, algo_name="BFS", detection_radius=8, speed=1):
-        self.maze = maze
-        self.x, self.y = self._spawn_free_cell()
-        self.algo_name = algo_name
-        self.detection_radius = detection_radius
-        self.speed = speed  # cells per tick (int, normally 1)
-        self.path = []
-        self.chasing = False
-        self.patrol_target = None
+        # Kiểm tra xem ô tiếp theo có phải là ô màu trắng hoặc chứa chướng ngại vật không
+        if self.maze.grid[next_y][next_x] == 0 or (next_x, next_y) in self.maze.obstacles:
+            # Nếu ô tiếp theo không hợp lệ, kiểm tra xem ô tiếp theo có phải là ô chứa chướng ngại vật hay không
+            if (next_x, next_y) in self.maze.obstacles:
+                # Nếu là ô chứa chướng ngại vật, lùi lại 3 bước đã đi trước đó
+                if len(self.move_history) >= 4:
+                    # Lùi lại 3 bước
+                    for i in range(3):
+                        x, y = self.move_history.pop()
+                        self.path.remove((x, y))
+                        # Đặt lại giá trị của ô đã đi trước đó thành 0 (màu trắng)
+                        self.maze.grid[y][x] = 0
 
-    def _spawn_free_cell(self):
-        # random free cell not start/end
-        attempts = 0
-        while True:
-            attempts += 1
-            x = random.randint(1, self.maze.width - 2)
-            y = random.randint(1, self.maze.height - 2)
-            if self.maze.grid[y][x] == 0 and (x, y) not in self.maze.obstacles and (x, y) != (self.maze.start_x, self.maze.start_y) and (x, y) != (self.maze.end_x, self.maze.end_y):
-                return x, y
-            if attempts > 1000:
-                return self.maze.start_x + 1, self.maze.start_y + 1
+                    # Lấy tọa độ của ô đã đi trước đó
+                    next_x, next_y = self.move_history[-1]  
+                else:
+                    # Nếu không đủ 3 ô trong lịch sử di chuyển, thì di chuyển về điểm xuất phát
+                    next_x, next_y = self.maze.start_x, self.maze.start_y
 
-    def distance_to(self, px, py):
-        return abs(self.x - px) + abs(self.y - py)
+                # Lưu lại tọa độ lùi
+                self.x = next_x
+                self.y = next_y
+                self.path.append((self.x, self.y))
+                self.move_history.append((self.x, self.y))
 
-    def update_algorithm(self, name):
-        if name in ALGO_MAP:
-            self.algo_name = name
+                # Tạo một thread mới để phát nhạc
+                threading.Thread(target=self.play_sound_after_reverse).start()
 
-    def compute_path_to(self, target):
-        algo = ALGO_MAP.get(self.algo_name, ALGO_MAP["BFS"])
-        # Some algorithms (ids, dfs) accept different args; handle ids with max_depth param if needed
-        if self.algo_name == "IDS":
-            path = algo(self.maze, start=(self.x, self.y), goal=target, max_depth=100)
-        elif self.algo_name == "DFS":
-            path = algo(self.maze, start=(self.x, self.y), goal=target)
-        else:
-            path = algo(self.maze, start=(self.x, self.y), goal=target)
-        return path
+                return  # Kết thúc phương thức sau khi xử lý va chạm
 
-    def step_along_path(self):
-        # move up to self.speed steps along path
-        if len(self.path) > 1:
-            # keep first element as current pos, next is next step
-            # Remove first if matches current
-            if self.path[0] == (self.x, self.y):
-                self.path.pop(0)
-            steps = min(self.speed, max(1, len(self.path)-0))
-            for _ in range(steps):
-                if len(self.path) > 0:
-                    nx, ny = self.path.pop(0)
-                    # ensure valid
-                    if 0 <= nx < self.maze.width and 0 <= ny < self.maze.height and self.maze.grid[ny][nx] == 0:
-                        self.x, self.y = nx, ny
-                    else:
-                        break
+            # Nếu ô tiếp theo là ô màu trắng, tiến hành di chuyển bình thường
+            self.x = next_x
+            self.y = next_y
+            self.path.append((self.x, self.y))
+            self.move_history.append((self.x, self.y))
 
-    def tick(self, player):
-        # detect player
-        if self.distance_to(player.x, player.y) <= self.detection_radius:
-            # begin chase
-            if not self.chasing:
-                self.chasing = True
-            # compute path to player's current pos
-            self.path = self.compute_path_to((player.x, player.y))
-            # ensure path starts at self pos
-            if not self.path or self.path[0] != (self.x, self.y):
-                # prepend current position
-                self.path = [(self.x, self.y)] + self.path
-            # move along path
-            self.step_along_path()
-        else:
-            # out of detection radius
-            if self.chasing:
-                self.chasing = False
-                self.path = []
-            # simple patrol: move randomly occasionally
-            if random.random() < 0.02:
-                # pick a random reachable cell nearby as patrol target
-                tx = max(1, min(self.maze.width - 2, self.x + random.randint(-5,5)))
-                ty = max(1, min(self.maze.height - 2, self.y + random.randint(-5,5)))
-                if self.maze.grid[ty][tx] == 0:
-                    p = self.compute_path_to((tx, ty))
-                    if p:
-                        self.path = p
-            # follow patrol path if any
-            if self.path:
-                if self.path[0] == (self.x, self.y):
-                    self.path.pop(0)
-                if self.path:
-                    nx, ny = self.path.pop(0)
-                    if self.maze.grid[ny][nx] == 0:
-                        self.x, self.y = nx, ny
+    def play_sound_after_reverse(self):
+        # Khởi tạo mixer của pygame
+        pygame.mixer.init()
 
-    def draw(self, screen, cell_size):
-        # draw chaser as red square or icon if you have one
-        try:
-            current_dir = os.path.dirname(__file__)
-            picture_dir = os.path.join(current_dir, "..", "Picture")
-            icon = pygame.image.load(os.path.join(picture_dir, "chaser_icon.png"))
-            icon = pygame.transform.scale(icon, (cell_size, cell_size))
-            screen.blit(icon, (self.x * cell_size, self.y * cell_size))
-        except Exception:
-            pygame.draw.rect(screen, (200, 0, 0), (self.x * cell_size, self.y * cell_size, cell_size, cell_size))
+        # Phát nhạc 'trungchuongngaivat.mp3'
+        pygame.mixer.music.load(r"D:\game1\GameTTNT\src\Music\trungchuongngaivat.mp3")
+        pygame.mixer.music.play()
+
+        # Đợi cho nhạc phát xong
+        pygame.time.wait(3000)  # Chờ 3 giây
+
+        # Phát nhạc 'nhac.mp3'
+        pygame.mixer.music.load(r"D:\game1\GameTTNT\src\Music\nhac.mp3")
+        pygame.mixer.music.play()
+
+        

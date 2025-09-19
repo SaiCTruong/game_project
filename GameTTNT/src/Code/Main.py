@@ -1,20 +1,10 @@
-# Main.py
 import pygame
-import time
-import os
 from Maze import Maze
-from ControlPanel import ControlPanel
-from AI import Player, Chaser
-from Algorithms import ALGO_MAP
-import random
 from pygame.locals import *
-
-def spawn_chasers(maze, num, algo_name, detection_radius=8):
-    chasers = []
-    for _ in range(num):
-        c = Chaser(maze, algo_name=algo_name, detection_radius=detection_radius)
-        chasers.append(c)
-    return chasers
+import time
+from ControlPanel import ControlPanel
+from AI import AI
+from Algorithms import bfs, dfs, ucs, ids, astar, greedy, dijkstra
 
 def main():
     pygame.init()
@@ -22,124 +12,202 @@ def main():
     screen = pygame.display.set_mode((width, height))
     pygame.mixer.init()
 
-    current_dir = os.path.dirname(__file__)
-    music_dir = os.path.join(current_dir, "..", "Music")
-    picture_dir = os.path.join(current_dir, "..", "Picture")
+    # --- Load nhạc nền --- #
+    pygame.mixer.music.load(r"D:\game1\GameTTNT\src\Music\nhac.mp3")
+    pygame.mixer.music.set_volume(0.5)
 
-    # initial music
-    try:
-        pygame.mixer.music.load(os.path.join(music_dir, "nhac.mp3"))
-        pygame.mixer.music.set_volume(0.5)
-    except Exception:
-        pass
+    # --- Icon nhân vật --- #
+    cell_size = 20
+    player_image = pygame.image.load(r"D:\game1\GameTTNT\src\Picture\icon.png")
+    player_image = pygame.transform.scale(player_image, (cell_size, cell_size))
 
-    # initial config
+    # --- Khởi tạo --- #
     control_panel = ControlPanel(300, 500)
-    maze = Maze(control_panel.maze_width, control_panel.maze_height)
-    player = Player(maze)
-    chasers = spawn_chasers(maze, control_panel.num_chasers, control_panel.selected_algo, detection_radius=8)
+    maze = Maze(35, 25)
+    ai = AI(maze)
+    ai.maze = maze
 
     auto_play = False
     shortest_path = None
     start_time = None
-    countdown_time = 120
+    countdown_time = 59
     running = True
     game_over = False
+    game_over_time = None
     maze_completed = False
+    congrats_display_time = None
+    game_over_display_time = None
 
-    cell_size = 20
+    # --- Thuật toán AI --- #
+    ai_menu_open = False
+    selected_algorithm = None
+    algorithms = {
+        "BFS": bfs,
+        "DFS": dfs,
+        "UCS": ucs,
+        "IDS": ids,
+        "A*": astar,
+        "Greedy": greedy,
+        "Dijkstra": dijkstra
+    }
+
+    font = pygame.font.Font(None, 28)
 
     while running:
+        current_time = pygame.time.get_ticks()
+
+        # Kiểm tra hoàn thành mê cung
+        if ai.x == maze.end_x and ai.y == maze.end_y:
+            maze_completed = True
+            if not game_over:
+                game_over_time = time.time()
+                if start_time is not None:
+                    total_time = game_over_time - start_time
+                start_time = None
+                game_over = True
+                pygame.mixer.music.load(r"D:\game1\GameTTNT\src\Music\dendich.mp3")
+                pygame.mixer.music.play()
+                congrats_display_time = pygame.time.get_ticks()
+
+        # --- Xử lý sự kiện --- #
         for event in pygame.event.get():
             if event.type == QUIT:
                 running = False
-            else:
-                actions = control_panel.handle_event(event)
-                if actions:
-                    # handle returned actions
-                    if "algo" in actions:
-                        for ch in chasers:
-                            ch.update_algorithm(actions["algo"])
-                    if "num_chasers" in actions:
-                        # respawn chasers to match number
-                        chasers = spawn_chasers(maze, actions["num_chasers"], control_panel.selected_algo, detection_radius=8)
-                    if "maze_size" in actions:
-                        w, h = actions["maze_size"]
-                        maze = Maze(w, h)
-                        player = Player(maze)
-                        chasers = spawn_chasers(maze, control_panel.num_chasers, control_panel.selected_algo, detection_radius=8)
-                    if "reset_btn" in actions:
-                        maze = Maze(control_panel.maze_width, control_panel.maze_height)
-                        player = Player(maze)
-                        chasers = spawn_chasers(maze, control_panel.num_chasers, control_panel.selected_algo, detection_radius=8)
-                        start_time = None
-                        game_over = False
-                    if "exit_btn" in actions:
-                        running = False
-                    if "auto_play_btn" in actions:
-                        # start timer, but in escape game auto_play irrelevant — we keep for compatibility
-                        start_time = time.time()
-                    if "ai_play_btn" in actions:
-                        # for compatibility: spawn chasers and start timer
-                        start_time = time.time()
 
-            # Player movement via keys
-            if event.type == KEYDOWN:
-                if event.key == K_UP:
-                    player.move(0, -1)
-                elif event.key == K_DOWN:
-                    player.move(0, 1)
-                elif event.key == K_LEFT:
-                    player.move(-1, 0)
-                elif event.key == K_RIGHT:
-                    player.move(1, 0)
+            elif event.type == MOUSEBUTTONDOWN:
+                mouse_x, mouse_y = pygame.mouse.get_pos()
 
-        # update chasers each tick
-        for ch in chasers:
-            ch.tick(player)
-            # if chaser catches player -> game over
-            if (ch.x, ch.y) == (player.x, player.y):
-                game_over = True
+                # --- Nút Auto Play --- #
+                if 750 <= mouse_x <= 950 and 50 <= mouse_y <= 100:
+                    auto_play = True
+                    start_time = time.time()
+                    pygame.mixer.music.load(r"D:\game1\GameTTNT\src\Music\nhac.mp3")
+                    pygame.mixer.music.play()
 
-        # draw
-        screen.fill((0,0,0))
-        maze.display_maze(screen, player if hasattr(player, 'path') else None)
-        # draw player icon
-        try:
-            player_img = pygame.image.load(os.path.join(picture_dir, "icon.png"))
-            player_img = pygame.transform.scale(player_img, (cell_size, cell_size))
-            screen.blit(player_img, (player.x * cell_size, player.y * cell_size))
-        except Exception:
-            pygame.draw.rect(screen, (0, 0, 200), (player.x * cell_size, player.y * cell_size, cell_size, cell_size))
+                # --- Nút AI Play: mở/đóng menu --- #
+                elif 750 <= mouse_x <= 950 and 150 <= mouse_y <= 200:
+                    ai_menu_open = not ai_menu_open
 
-        # draw chasers
-        for c in chasers:
-            c.draw(screen, cell_size)
-            # optionally draw detection radius (semi-transparent circle)
-            # translate grid coords -> pixel
-            try:
-                s = pygame.Surface((cell_size* (2*c.detection_radius+1), cell_size*(2*c.detection_radius+1)), pygame.SRCALPHA)
-                s.fill((0,0,0,0))
-                pygame.draw.circle(s, (255,0,0,30), (s.get_width()//2, s.get_height()//2), cell_size*c.detection_radius)
-                screen.blit(s, ((c.x - c.detection_radius) * cell_size, (c.y - c.detection_radius) * cell_size))
-            except Exception:
-                pass
+                # --- Reset Maze --- #
+                elif 750 <= mouse_x <= 950 and 250 <= mouse_y <= 300:
+                    maze = Maze(35, 25)
+                    ai = AI(maze)
+                    ai.maze = maze
+                    auto_play = False
+                    shortest_path = None
+                    start_time = None
+                    game_over = False
+                    game_over_time = None
+                    pygame.mixer.music.stop()
 
+                # --- Thoát game --- #
+                elif 750 <= mouse_x <= 950 and 350 <= mouse_y <= 400:
+                    running = False
+
+                # --- Chọn thuật toán trong menu --- #
+                if ai_menu_open:
+                    algo_y_start = 200
+                    for i, algo_name in enumerate(algorithms.keys()):
+                        if 750 <= mouse_x <= 950 and algo_y_start + i * 40 <= mouse_y <= algo_y_start + (i + 1) * 40:
+                            selected_algorithm = algo_name
+                            auto_play = True
+                            shortest_path = algorithms[algo_name](maze)
+                            start_time = time.time()
+                            pygame.mixer.music.load(r"D:\game1\GameTTNT\src\Music\nhac.mp3")
+                            pygame.mixer.music.play()
+                            ai_menu_open = False
+                            break
+
+            elif event.type == KEYDOWN and auto_play:
+                if not game_over:
+                    if event.key == K_UP:
+                        ai.move_towards(ai.x, ai.y - 1)
+                    elif event.key == K_DOWN:
+                        ai.move_towards(ai.x, ai.y + 1)
+                    elif event.key == K_LEFT:
+                        ai.move_towards(ai.x - 1, ai.y)
+                    elif event.key == K_RIGHT:
+                        ai.move_towards(ai.x + 1, ai.y)
+
+            # --- ControlPanel xử lý thêm --- #
+            maze, ai, _ = control_panel.handle_event(event, maze, ai)
+
+        # --- Di chuyển liên tục khi giữ phím --- #
+        maze, ai = control_panel.handle_continuous_movement(maze, ai)
+
+        # --- Auto Play --- #
+        if auto_play and shortest_path:
+            if len(shortest_path) > 1:
+                next_step = shortest_path.pop(1)
+                ai.move_towards(next_step[0], next_step[1])
+
+        # --- Rewards --- #
+        rewards_to_remove = []
+        play_reward_music = False
+        for reward in maze.rewards:
+            if (ai.x, ai.y) == reward:
+                if start_time: start_time += 3
+                rewards_to_remove.append(reward)
+                play_reward_music = True
+        for reward in rewards_to_remove:
+            maze.rewards.remove(reward)
+        if play_reward_music:
+            pygame.mixer.music.load(r"D:\game1\GameTTNT\src\Music\trungthuong.mp3")
+            pygame.mixer.music.play()
+            pygame.mixer.music.set_endevent(pygame.USEREVENT)
+            pygame.mixer.music.queue(r"D:\game1\GameTTNT\src\Music\nhac.mp3")
+
+        # --- Vẽ màn hình --- #
+        screen.fill((0, 0, 0))
+        maze.display_maze(screen, ai)
+        screen.blit(player_image, (ai.x * cell_size, ai.y * cell_size))  # icon nhân vật
         control_panel.display(screen)
 
-        # HUD: instructions
-        font = pygame.font.Font(None, 24)
-        txt = font.render("Use arrows to move. Avoid red chasers!", True, (255,255,255))
-        screen.blit(txt, (10, height - 30))
+        # --- Menu chọn thuật toán --- #
+        if ai_menu_open:
+            algo_y_start = 200
+            for i, algo_name in enumerate(algorithms.keys()):
+                rect = pygame.Rect(750, algo_y_start + i * 40, 200, 40)
+                pygame.draw.rect(screen, (200, 200, 200), rect)
+                text = font.render(algo_name, True, (0, 0, 0))
+                screen.blit(text, (rect.x + 10, rect.y + 10))
 
-        if game_over:
-            font2 = pygame.font.Font(None, 72)
-            text = font2.render("CAUGHT! Game Over", True, (255, 0, 0))
-            rect = text.get_rect(center=(width//2, height//2))
-            screen.blit(text, rect)
+        # --- Đếm ngược thời gian --- #
+        if start_time and not game_over:
+            elapsed_time = countdown_time - int(time.time() - start_time)
+            elapsed_time = max(0, elapsed_time)
+            time_text = font.render(f"TIME: {elapsed_time} S", True, (0, 0, 0))
+            screen.blit(time_text, (width - 200, 10))
+
+            if elapsed_time == 0 and not maze_completed:
+                game_over = True
+                game_over_time = time.time()
+                game_over_display_time = pygame.time.get_ticks()
+                pygame.mixer.music.load(r"D:\game1\GameTTNT\src\Music\gameover.mp3")
+                pygame.mixer.music.play()
+
+        # --- Chúc mừng --- #
+        if congrats_display_time:
+            elapsed_congrats_time = current_time - congrats_display_time
+            if elapsed_congrats_time < 3000:
+                pygame.draw.rect(screen, (0, 128, 0), (width//2 - 150, height//2 - 50, 300, 100))
+                congrats_text = pygame.font.Font(None, 48).render("Congratulations!", True, (255, 255, 255))
+                screen.blit(congrats_text, (width//2 - 100, height//2 - 20))
+            else:
+                congrats_display_time = None
+
+        # --- Game Over --- #
+        if game_over_display_time:
+            elapsed_game_over_time = current_time - game_over_display_time
+            if elapsed_game_over_time < 3000:
+                pygame.draw.rect(screen, (128, 0, 0), (width//2 - 150, height//2 - 50, 300, 100))
+                game_over_text = pygame.font.Font(None, 48).render("Game Over!", True, (255, 255, 255))
+                screen.blit(game_over_text, (width//2 - 100, height//2 - 20))
+            else:
+                game_over_display_time = None
 
         pygame.display.flip()
-        pygame.time.delay(120)
+        pygame.time.delay(100)
 
     pygame.quit()
 
