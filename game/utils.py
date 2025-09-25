@@ -1,0 +1,1 @@
+# hàm trợ giúp (toạ độ <-> index, heuristics,..)
