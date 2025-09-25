@@ -22,8 +22,8 @@ class Menu:
         self.COLOR_WHITE = (255, 255, 255)
         self.COLOR_BLACK = (0, 0, 0)
         self.COLOR_RED_TEXT = (255, 100, 100) 
-        self.COLOR_GREEN_BTN = (50, 200, 50) # Màu xanh cũ cho nút vẽ
-        self.COLOR_RED_BTN = (200, 50, 50)   # Màu đỏ cũ cho nút vẽ
+        self.COLOR_GREEN_BTN = (50, 200, 50) 
+        self.COLOR_RED_BTN = (200, 50, 50)   
 
         self.current_difficulty = "NORMAL"
         self.buttons = self._setup_buttons()
@@ -45,19 +45,30 @@ class Menu:
         self.bg_x = 0  
         self.scroll_speed = 0.5  
 
-        # --- Tải Hình ảnh Nút Bấm (CHỈ CẦN DÙNG CHO START) ---
-        button_size = (self.buttons["PLAY"].width, self.buttons["PLAY"].height) 
+        # --- Tải Hình ảnh Nút Bấm MỚI ---
+        # Kích thước tải ảnh: START và EXIT có kích thước khác nhau
+        self.button_size_play = (self.buttons["PLAY"].width, self.buttons["PLAY"].height)
+        self.button_size_exit = (self.buttons["EXIT"].width, self.buttons["EXIT"].height)
         
-        # Nút Xanh (PLAY)
-        self.button_green_normal = self._load_button_image("button_green_normal.png", button_size)
-        self.button_green_hover = self._load_button_image("button_green_hover.png", button_size) or self.button_green_normal
+        # 1. Nút START (Green)
+        self.button_green_normal = self._load_button_image("button_green_hover.png", self.button_size_play)
+        self.button_green_hover = self._load_button_image("BlueStandartStart.png", self.button_size_play) or self.button_green_normal
         
-        # Tạo Surface thay thế (Fallback) cho START nếu ảnh không có
+        # 2. Nút EXIT (Red) - Sử dụng tên file mới (ví dụ: quit_normal.png)
+        # Tải ảnh cho nút EXIT/QUIT
+        self.button_quit_normal = self._load_button_image("RedStandartQuit.png", self.button_size_exit)
+        self.button_quit_hover = self._load_button_image("BlueStandartQuit.png", self.button_size_exit) or self.button_quit_normal
+
+        # --- Logic Fallback ---
         if self.button_green_normal == None:
-             self.button_green_normal = pygame.Surface(button_size, pygame.SRCALPHA)
-             self.button_green_normal.fill(self.COLOR_GREEN_BTN)
+             self.button_green_normal = pygame.Surface(self.button_size_play, pygame.SRCALPHA); self.button_green_normal.fill(self.COLOR_GREEN_BTN)
         if self.button_green_hover == None:
              self.button_green_hover = self.button_green_normal
+        
+        if self.button_quit_normal == None: # Fallback cho nút EXIT
+             self.button_quit_normal = pygame.Surface(self.button_size_exit, pygame.SRCALPHA); self.button_quit_normal.fill(self.COLOR_RED_BTN)
+        if self.button_quit_hover == None:
+             self.button_quit_hover = self.button_quit_normal
         # ----------------------------------------------
 
     def _load_button_image(self, filename, size):
@@ -67,35 +78,62 @@ class Menu:
             img = pygame.image.load(path).convert_alpha()
             return pygame.transform.scale(img, size)
         else:
-            # Chỉ trả về None, logic fallback sẽ xử lý việc tạo Surface thay thế ở __init__
+            print(f"Cảnh báo: Không tìm thấy hình ảnh nút {filename}.")
             return None
 
     def _setup_buttons(self):
-        """Khởi tạo vị trí các nút PLAY, EXIT và 4 nút Độ Khó (Kích thước lớn hơn)."""
+        """Khởi tạo vị trí các nút PLAY, EXIT và 4 nút Độ Khó (Tối ưu hóa khoảng cách)."""
         center_x = self.width // 2
-        start_y = self.height // 3
         
-        button_height = 60
-        spacing = 25 
+        # Bắt đầu cao hơn (self.height // 10)
+        start_y = self.height // 10 
         
-        BUTTON_WIDTH = 420 
+        # --- Kích thước LỚN cho START và EXIT ---
+        LARGE_BUTTON_WIDTH = 200
+        LARGE_BUTTON_HEIGHT = 150
+        
+        # --- Kích thước CHUNG cho DIFFICULTY ---
+        NORMAL_BUTTON_HEIGHT = 60
+        NORMAL_BUTTON_WIDTH = 420
+        
+        spacing = 5 # Khoảng cách giữa các nút Độ Khó (giữ 5px)
         
         buttons = {}
         
-        buttons["PLAY"] = pygame.Rect(center_x - (BUTTON_WIDTH // 2), start_y, BUTTON_WIDTH, button_height)
-        buttons["EXIT"] = pygame.Rect(center_x - (BUTTON_WIDTH // 2), start_y + button_height + spacing, BUTTON_WIDTH, button_height)
+        # 1. Nút PLAY (START)
+        buttons["PLAY"] = pygame.Rect(
+            center_x - (LARGE_BUTTON_WIDTH // 2), 
+            start_y, 
+            LARGE_BUTTON_WIDTH, 
+            LARGE_BUTTON_HEIGHT
+        )
         
-        diff_start_y = start_y + 2 * (button_height + spacing) + 30
+        # 2. Nút EXIT
+        # FIX QUAN TRỌNG: Khoảng cách giữa START và EXIT
+        EXIT_SPACING = 0 # <--- Đặt khoảng cách về 0px (Sát nhau nhất)
+        
+        # Vị trí Y mới: start_y + (Chiều cao PLAY) + 0
+        exit_y = start_y + LARGE_BUTTON_HEIGHT + EXIT_SPACING
+        buttons["EXIT"] = pygame.Rect(
+            center_x - (LARGE_BUTTON_WIDTH // 2), 
+            exit_y, 
+            LARGE_BUTTON_WIDTH, 
+            LARGE_BUTTON_HEIGHT
+        )
+        
+        # 3. Nút Chọn độ khó
+        # Bắt đầu sau nút EXIT + spacing (Sử dụng spacing 5px)
+        diff_start_y = exit_y + LARGE_BUTTON_HEIGHT + spacing 
         
         for i, level in enumerate(config.DIFFICULTY_LEVELS):
             buttons[level] = pygame.Rect(
-                center_x - (BUTTON_WIDTH // 2), 
-                diff_start_y + i * (button_height + spacing), 
-                BUTTON_WIDTH, 
-                button_height
+                center_x - (NORMAL_BUTTON_WIDTH // 2), 
+                diff_start_y + i * (NORMAL_BUTTON_HEIGHT + spacing), 
+                NORMAL_BUTTON_WIDTH, 
+                NORMAL_BUTTON_HEIGHT
             )
         return buttons
-
+    
     def handle_input(self, event):
         """Xử lý sự kiện click chuột trên Menu."""
         if event.type == pygame.MOUSEBUTTONDOWN:
@@ -115,9 +153,9 @@ class Menu:
         return None, None
 
     def draw(self):
-        """Vẽ toàn bộ Menu lên màn hình, sử dụng ảnh cho PLAY và vẽ hình cho EXIT/Difficulty."""
+        """Vẽ toàn bộ Menu lên màn hình, sử dụng ảnh cho PLAY/EXIT và vẽ hình cho Difficulty."""
         
-        # --- 1. Vẽ Background Chuyển Động ---
+        # ... (Vẽ Background và Overlay giữ nguyên) ...
         if self.background_menu:
             self.bg_x -= self.scroll_speed
             if self.bg_x < -self.bg_width:
@@ -127,7 +165,6 @@ class Menu:
         else:
             self.screen.fill(self.COLOR_BLACK) 
         
-        # --- 2. Vẽ Overlay mờ ---
         overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 100)) 
         self.screen.blit(overlay, (0, 0))
@@ -148,25 +185,21 @@ class Menu:
         self.screen.blit(button_image, self.buttons["PLAY"])
         
         # ----------------------------------------------------
-        # --- 5. VẼ NÚT EXIT (QUAY LẠI CODE CŨ: HÌNH HỌC) ---
+        # --- 5. VẼ NÚT EXIT (DÙNG ẢNH PIXEL ART) ---
         # ----------------------------------------------------
         rect_exit = self.buttons["EXIT"]
         
-        # Màu nền: Đỏ và sáng hơn khi hover
-        color_exit = (230, 80, 80) if rect_exit.collidepoint(mouse_pos) else self.COLOR_RED_BTN
+        # Sử dụng ảnh nút QUIT/EXIT
+        button_image_exit = self.button_quit_hover if rect_exit.collidepoint(mouse_pos) else self.button_quit_normal
+        self.screen.blit(button_image_exit, rect_exit)
         
-        pygame.draw.rect(self.screen, color_exit, rect_exit, border_radius=10)
-        
-        # Vẽ chữ EXIT
-        text_exit = self.font_button.render("EXIT GAME", True, self.COLOR_WHITE)
-        self.screen.blit(text_exit, text_exit.get_rect(center=rect_exit.center))
-
-
+        # ----------------------------------------------------
         # --- 6. Vẽ Khung Chọn Độ Khó (QUAY LẠI CODE CŨ: HÌNH HỌC) ---
+        # ----------------------------------------------------
         
-        label_text = self.font_medium.render("SELECT DIFFICULTY LEVEL:", True, self.COLOR_WHITE) 
+       
         label_y = self.buttons[config.DIFFICULTY_LEVELS[0]].top - 30 
-        self.screen.blit(label_text, label_text.get_rect(center=(self.width // 2, label_y)))
+        
 
         for level in config.DIFFICULTY_LEVELS:
             rect = self.buttons[level]

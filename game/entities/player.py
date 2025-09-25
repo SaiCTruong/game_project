@@ -1,3 +1,4 @@
+# game/entities/player.py
 # -*- coding: utf-8 -*-
 import pygame
 from game import config
@@ -9,11 +10,11 @@ class Player:
         self.y = start_y
         self.size = config.CELL_SIZE
 
-        # ⚡ Load sprite sheet
+        # ⚡ Load sprite sheet (Giữ nguyên)
         sprite_sheet = pygame.image.load("game/assets/images/player.png").convert_alpha()
         sheet_w, sheet_h = sprite_sheet.get_size()
-        frame_w = sheet_w // 4   # 4 cột
-        frame_h = sheet_h // 4   # 4 hàng
+        frame_w = sheet_w // 4 
+        frame_h = sheet_h // 4 
 
         # Cắt frame
         self.animations = {
@@ -34,13 +35,12 @@ class Player:
         self.direction = "down"
         self.frame_index = 0
         self.last_anim_time = 0
-        self.anim_speed = 150  # ms/frame
-
-        # Cooldown di chuyển
-        self.move_cooldown = 150
-        self.last_move_time = 0
-
-        # Trạng thái di chuyển
+        self.anim_speed = 150 
+        
+        # FIX: Tinh chỉnh tham số cho trượt dài
+        self.move_delay = 100 # Độ trễ (ms) giữa các lần di chuyển
+        self.last_move_time = 0 
+        
         self.is_moving = False
 
     def move(self, dx, dy, direction):
@@ -52,39 +52,58 @@ class Player:
                 self.y = new_y
                 self.direction = direction
                 self.is_moving = True
+                return True # Báo hiệu di chuyển thành công
             else:
                 self.is_moving = False
+                return False
         else:
             self.is_moving = False
+            return False
+        
+    # --- LOGIC THẮNG/THUA giữ nguyên ---
+
+    def get_tile_position(self):
+        """Trả về tọa độ tile (x, y) hiện tại của Player."""
+        return (self.x, self.y)
+
+    def check_collision_with_guard(self, guard):
+        """Kiểm tra xem Player có va chạm (ở cùng một tile) với Guard không."""
+        return self.get_tile_position() == (guard.tile_x, guard.tile_y)
+    
+    # ----------------------------
 
     def handle_input(self):
         keys = pygame.key.get_pressed()
         now = pygame.time.get_ticks()
 
-        self.is_moving = False  # reset, chỉ true nếu thực sự di chuyển
+        self.is_moving = False 
 
-        if now - self.last_move_time > self.move_cooldown:
+        # Cơ chế trượt dài: Chỉ cho phép di chuyển nếu đã qua move_delay
+        if now - self.last_move_time > self.move_delay:
+            moved = False
+            
+            # Thực hiện di chuyển theo thứ tự ưu tiên
             if keys[pygame.K_UP] or keys[pygame.K_w]:
-                self.move(0, -1, "up")
-                self.last_move_time = now
+                moved = self.move(0, -1, "up")
             elif keys[pygame.K_DOWN] or keys[pygame.K_s]:
-                self.move(0, 1, "down")
-                self.last_move_time = now
+                moved = self.move(0, 1, "down")
             elif keys[pygame.K_LEFT] or keys[pygame.K_a]:
-                self.move(-1, 0, "left")
-                self.last_move_time = now
+                moved = self.move(-1, 0, "left")
             elif keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-                self.move(1, 0, "right")
+                moved = self.move(1, 0, "right")
+
+            # Chỉ reset thời gian nếu di chuyển thành công
+            if moved:
                 self.last_move_time = now
 
     def update_animation(self):
-        if self.is_moving:  # chỉ animate khi di chuyển
+        if self.is_moving: 
             now = pygame.time.get_ticks()
             if now - self.last_anim_time > self.anim_speed:
                 self.frame_index = (self.frame_index + 1) % len(self.animations[self.direction])
                 self.last_anim_time = now
         else:
-            self.frame_index = 0  # đứng yên thì về frame đầu
+            self.frame_index = 0 
 
 
     def draw(self, screen):

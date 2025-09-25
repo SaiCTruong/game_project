@@ -14,6 +14,8 @@ from game.render.in_game_menu import InGameMenu
 # Định nghĩa Trạng thái Game
 GAME_STATE = "MENU" 
 PAUSE_STATE = "GAME"
+WIN_STATE = "WIN" 
+LOSE_STATE = "LOSE" 
 SELECTED_DIFFICULTY = "NORMAL" 
 
 # Biến để lưu các đối tượng game (Global)
@@ -25,6 +27,13 @@ game_assets = {}
 # Kích thước nút Bánh Răng (Global)
 GEAR_SIZE = 30 
 GEAR_RECT = None 
+
+# --- CÁC BIẾN CHO LOGIC WIN/LOSE ---
+# Tọa độ Lối ra (Dựa trên cấu trúc 2*N+1 của maze)
+# Exit X: (MAZE_COLS * 2) - 2. Exit Y: (MAZE_ROWS * 2) - 1
+EXIT_TILE_X = (config.MAZE_COLS * 2) - 2 
+EXIT_TILE_Y = (config.MAZE_ROWS * 2) - 1
+
 
 # --- HÀM TIỆN ÍCH CẦN THIẾT ---
 
@@ -66,12 +75,10 @@ def draw_gear_button(screen):
     font = pygame.font.SysFont('Arial', 18, bold=True)
     text = font.render("II", True, (0, 0, 0)) # Biểu tượng Tạm dừng
     screen.blit(text, text.get_rect(center=GEAR_RECT.center))
-
+    
 
 def draw_pause_menu(screen, in_game_menu):
-    """
-    Vẽ menu PAUSED ở layer trên cùng (Modal Centered).
-    """
+    """Vẽ menu PAUSED ở layer trên cùng (Modal Centered)."""
     menu_rect = in_game_menu.menu_rect
     buttons = in_game_menu.buttons
     
@@ -107,6 +114,43 @@ def draw_pause_menu(screen, in_game_menu):
     screen.blit(text_m, text_m.get_rect(center=rect_m.center))
 
 
+def draw_game_end_screen(screen, message, color):
+    """Vẽ màn hình thông báo Thắng/Thua và nút trở về Menu."""
+    overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 200)) 
+    screen.blit(overlay, (0, 0))
+
+    font_end = pygame.font.SysFont('Arial', 70, bold=True)
+    font_small = pygame.font.SysFont('Arial', 40)
+
+    # Tiêu đề Thắng/Thua
+    title_text = font_end.render(message, True, color)
+    title_rect = title_text.get_rect(center=(screen.get_width() // 2, screen.get_height() // 3))
+    screen.blit(title_text, title_rect)
+    
+    # Nút Back to Menu (được vẽ đơn giản)
+    BUTTON_WIDTH = 300
+    BUTTON_HEIGHT = 60
+    center_x = screen.get_width() // 2
+    
+    menu_button_rect = pygame.Rect(center_x - (BUTTON_WIDTH // 2), 
+                                   screen.get_height() // 2, 
+                                   BUTTON_WIDTH, BUTTON_HEIGHT)
+    
+    # Logic hover
+    mouse_pos = pygame.mouse.get_pos()
+    is_hover = menu_button_rect.collidepoint(mouse_pos)
+    
+    button_color = (100, 100, 100) if is_hover else (50, 50, 50)
+    pygame.draw.rect(screen, button_color, menu_button_rect, border_radius=10)
+
+    # Vẽ chữ
+    text = font_small.render("BACK TO MENU", True, (255, 255, 255))
+    screen.blit(text, text.get_rect(center=menu_button_rect.center))
+    
+    return menu_button_rect
+
+
 # --- HÀM KHỞI TẠO GAME ---
 
 def setup_new_game(tiles, difficulty_name, screen):
@@ -124,7 +168,7 @@ def setup_new_game(tiles, difficulty_name, screen):
 
 def run_game_loop(screen, tiles):
     """
-    Game Loop chính, xử lý trạng thái GAME và PAUSED.
+    Game Loop chính, xử lý trạng thái GAME, PAUSED, WIN/LOSE.
     """
     global GAME_STATE, PAUSE_STATE 
     
@@ -141,6 +185,15 @@ def run_game_loop(screen, tiles):
             if event.type == pygame.QUIT:
                 return "QUIT" 
             
+            # --- Xử lý sự kiện khi Game Over (WIN/LOSE) ---
+            if GAME_STATE == WIN_STATE or GAME_STATE == LOSE_STATE:
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    # Lấy tọa độ nút để kiểm tra click
+                    menu_button_rect = draw_game_end_screen(screen, "", (0, 0, 0)) 
+                    if menu_button_rect.collidepoint(event.pos):
+                        return "BACK_TO_MENU"
+                continue 
+
             # --- Xử lý Tạm dừng ---
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 if GAME_STATE == "GAME":
@@ -153,38 +206,59 @@ def run_game_loop(screen, tiles):
                 if GEAR_RECT and GEAR_RECT.collidepoint(event.pos):
                     GAME_STATE = "PAUSED"
 
-
             # Xử lý input menu khi đang PAUSED
             if GAME_STATE == "PAUSED":
                 action = in_game_menu.handle_input(event)
-                
                 if action == "RESUME":
                     GAME_STATE = "GAME"
                 elif action == "BACK_TO_MENU":
                     return "BACK_TO_MENU" 
+            
+            if GAME_STATE == "GAME":
+                player.handle_input()
 
-        # --- CẬP NHẬT & VẼ GAME LOGIC ---
-        
+
+        # --- CẬP NHẬT LOGIC THẮNG/THUA (chỉ khi GAME_STATE == "GAME") ---
+        if GAME_STATE == "GAME":
+            # 1. Logic Thua: Player va chạm Guard
+            for guard in guard_manager.guards:
+                if player.check_collision_with_guard(guard):
+                    GAME_STATE = LOSE_STATE
+                    break
+
+            # 2. Logic Thắng: Player đến đích (Exit)
+            if player.get_tile_position() == ((EXIT_TILE_X + 1), (EXIT_TILE_Y)):
+                GAME_STATE = WIN_STATE
+
+
+        # --- VẼ CÁC THÀNH PHẦN ---
         screen.blit(background_img, (0, 0))
         
+        # Cập nhật và vẽ các thành phần game
         if GAME_STATE == "GAME":
-            player.handle_input()
-            guard_manager.update(player)
-        
+            guard_manager.update(player) 
+            
         render_maze(screen, tiles, game_assets['wall'])
+        
+        # Vẽ In/Out
         screen.blit(game_assets['in'], (1 * config.CELL_SIZE, 0))
-        screen.blit(game_assets['out'], ((len(tiles[0]) - 2) * config.CELL_SIZE,
-                                         (len(tiles) - 1) * config.CELL_SIZE))
+        # FIX VẼ LỐI RA: Sử dụng tọa độ đã định nghĩa
+        screen.blit(game_assets['out'], 
+                    ((EXIT_TILE_X + 1) * config.CELL_SIZE, 
+                     (EXIT_TILE_Y + 1)  * config.CELL_SIZE))  
+
         guard_manager.draw(screen)
         player.draw(screen)
 
-        # Vẽ Nút Bánh Răng chỉ khi game đang chạy
+        # 4. Vẽ Menu Tạm dừng hoặc Game End (Layer trên cùng)
         if GAME_STATE == "GAME":
             draw_gear_button(screen) 
-
-        # Vẽ Menu PAUSED (luôn ở layer trên cùng)
-        if GAME_STATE == "PAUSED":
+        elif GAME_STATE == "PAUSED":
             draw_pause_menu(screen, in_game_menu)
+        elif GAME_STATE == LOSE_STATE:
+            draw_game_end_screen(screen, "YOU WERE CAUGHT!", (255, 50, 50))
+        elif GAME_STATE == WIN_STATE:
+            draw_game_end_screen(screen, "ESCAPE SUCCESS!", (50, 255, 50))
 
         pygame.display.flip()
         
@@ -196,7 +270,7 @@ def main():
     
     # --- 1. Khởi tạo Pygame & Assets ---
     pygame.init()
-    
+    pygame.key.set_repeat(100, 50) 
     # Sinh mê cung (tạo map tĩnh để dễ quản lý)
     grid = generate_maze(config.MAZE_COLS, config.MAZE_ROWS)
     tiles = maze_to_tiles(grid, config.MAZE_COLS, config.MAZE_ROWS)
@@ -238,7 +312,7 @@ def main():
         if GAME_STATE == "MENU":
             menu.draw()
             
-        elif GAME_STATE == "GAME" or GAME_STATE == "PAUSED": 
+        elif GAME_STATE == "GAME" or GAME_STATE == "PAUSED" or GAME_STATE == WIN_STATE or GAME_STATE == LOSE_STATE: 
             result = run_game_loop(screen, tiles)
             
             if result == "QUIT":
