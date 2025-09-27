@@ -28,9 +28,11 @@ game_assets = {}
 GEAR_SIZE = 30 
 GEAR_RECT = None 
 
+# --- BIẾN AI MỚI ---
+AI_TOGGLE_KEY = pygame.K_f # <--- FIX: ĐÃ KHÔI PHỤC ĐỊNH NGHĨA NÀY
+
 # --- CÁC BIẾN CHO LOGIC WIN/LOSE ---
-# Tọa độ Lối ra (Dựa trên cấu trúc 2*N+1 của maze)
-# Exit X: (MAZE_COLS * 2) - 2. Exit Y: (MAZE_ROWS * 2) - 1
+# Tọa độ Lối ra (Dựa trên cấu trúc 2*N+1 của maze: 41x41 map)
 EXIT_TILE_X = (config.MAZE_COLS * 2) - 2 
 EXIT_TILE_Y = (config.MAZE_ROWS * 2) - 1
 
@@ -167,9 +169,6 @@ def setup_new_game(tiles, difficulty_name, screen):
 
 
 def run_game_loop(screen, tiles):
-    """
-    Game Loop chính, xử lý trạng thái GAME, PAUSED, WIN/LOSE.
-    """
     global GAME_STATE, PAUSE_STATE 
     
     running = True
@@ -188,11 +187,16 @@ def run_game_loop(screen, tiles):
             # --- Xử lý sự kiện khi Game Over (WIN/LOSE) ---
             if GAME_STATE == WIN_STATE or GAME_STATE == LOSE_STATE:
                 if event.type == pygame.MOUSEBUTTONDOWN:
-                    # Lấy tọa độ nút để kiểm tra click
                     menu_button_rect = draw_game_end_screen(screen, "", (0, 0, 0)) 
                     if menu_button_rect.collidepoint(event.pos):
                         return "BACK_TO_MENU"
                 continue 
+
+            # --- LOGIC CHUYỂN ĐỔI AI ---
+            if event.type == pygame.KEYDOWN:
+                if event.key == AI_TOGGLE_KEY:
+                    player.ai_mode = not player.ai_mode
+                    print(f"Player AI mode: {'ON' if player.ai_mode else 'OFF'} (Press F to toggle)")
 
             # --- Xử lý Tạm dừng ---
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
@@ -214,43 +218,47 @@ def run_game_loop(screen, tiles):
                 elif action == "BACK_TO_MENU":
                     return "BACK_TO_MENU" 
             
-            if GAME_STATE == "GAME":
+            # Input thủ công chỉ được gọi nếu AI mode TẮT
+            if GAME_STATE == "GAME" and not player.ai_mode:
                 player.handle_input()
 
 
-        # --- CẬP NHẬT LOGIC THẮNG/THUA (chỉ khi GAME_STATE == "GAME") ---
+        # --- CẬP NHẬT LOGIC GAME LOGIC ---
         if GAME_STATE == "GAME":
-            # 1. Logic Thua: Player va chạm Guard
+            # Nếu AI mode BẬT, Player tự di chuyển và tính toán đường đi
+            if player.ai_mode:
+                exit_tile = (EXIT_TILE_X, EXIT_TILE_Y)
+                guard_list = guard_manager.guards # Lấy danh sách Guard
+                player.handle_ai_move(tiles, exit_tile, guard_list) 
+            
+            guard_manager.update(player) # Guard vẫn update
+            
+            # ... (Logic Thắng/Thua giữ nguyên) ...
             for guard in guard_manager.guards:
                 if player.check_collision_with_guard(guard):
                     GAME_STATE = LOSE_STATE
                     break
 
-            # 2. Logic Thắng: Player đến đích (Exit)
-            if player.get_tile_position() == ((EXIT_TILE_X + 1), (EXIT_TILE_Y)):
+            if player.get_tile_position() == (EXIT_TILE_X, EXIT_TILE_Y):
                 GAME_STATE = WIN_STATE
-
 
         # --- VẼ CÁC THÀNH PHẦN ---
         screen.blit(background_img, (0, 0))
         
         # Cập nhật và vẽ các thành phần game
         if GAME_STATE == "GAME":
-            guard_manager.update(player) 
+            pass # Logic update đã ở trên
             
         render_maze(screen, tiles, game_assets['wall'])
         
         # Vẽ In/Out
         screen.blit(game_assets['in'], (1 * config.CELL_SIZE, 0))
-        # FIX VẼ LỐI RA: Sử dụng tọa độ đã định nghĩa
-        screen.blit(game_assets['out'], 
-                    ((EXIT_TILE_X + 1) * config.CELL_SIZE, 
-                     (EXIT_TILE_Y + 1)  * config.CELL_SIZE))  
+        screen.blit(game_assets['out'], ((EXIT_TILE_X + 1) * config.CELL_SIZE, (EXIT_TILE_Y + 1) * config.CELL_SIZE)) 
 
         guard_manager.draw(screen)
         player.draw(screen)
 
-        # 4. Vẽ Menu Tạm dừng hoặc Game End (Layer trên cùng)
+        # Vẽ Menu Tạm dừng hoặc Game End (Layer trên cùng)
         if GAME_STATE == "GAME":
             draw_gear_button(screen) 
         elif GAME_STATE == "PAUSED":
@@ -268,9 +276,9 @@ def run_game_loop(screen, tiles):
 def main():
     global GAME_STATE, SELECTED_DIFFICULTY
     
-    # --- 1. Khởi tạo Pygame & Assets ---
     pygame.init()
-    pygame.key.set_repeat(100, 50) 
+    pygame.key.set_repeat(100, 50) # BẬT KEY REPEAT CHO CHẾ ĐỘ TRƯỢT DÀI
+    
     # Sinh mê cung (tạo map tĩnh để dễ quản lý)
     grid = generate_maze(config.MAZE_COLS, config.MAZE_ROWS)
     tiles = maze_to_tiles(grid, config.MAZE_COLS, config.MAZE_ROWS)
