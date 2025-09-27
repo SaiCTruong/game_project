@@ -37,6 +37,9 @@ EXIT_TILE_X = (config.MAZE_COLS * 2) - 2
 EXIT_TILE_Y = (config.MAZE_ROWS * 2) - 1
 
 
+
+tiles = None
+
 # --- HÀM TIỆN ÍCH CẦN THIẾT ---
 
 def load_image(path, size=None):
@@ -50,14 +53,27 @@ def load_image(path, size=None):
         img = pygame.transform.scale(img, size)
     return img
 
-def load_game_assets():
-    """Tải tất cả ảnh cần thiết, chỉ chạy một lần."""
+current_map_index = 0
+
+def load_game_assets(screen):
     global game_assets
     size = (config.CELL_SIZE, config.CELL_SIZE)
-    game_assets['wall'] = load_image("game/assets/images/wall.png", size)
+    game_assets['maps'] = [
+        load_image("game/assets/images/wooden.png", size),
+        load_image("game/assets/images/wall.png", size),
+        load_image("game/assets/images/ice.png", size),
+        load_image("game/assets/images/tree_wooden.png", size)
+    ]
     game_assets['in'] = load_image("game/assets/images/in.png", size)
     game_assets['out'] = load_image("game/assets/images/out.png", size)
-    game_assets['background'] = pygame.image.load("game/assets/images/background.png").convert_alpha()
+    screen_w, screen_h = screen.get_size()
+    game_assets['backgrounds'] = [
+        pygame.transform.scale(pygame.image.load("game/assets/images/bg_wooden.png").convert_alpha(), (screen_w, screen_h)),
+        pygame.transform.scale(pygame.image.load("game/assets/images/bg_wall.png").convert_alpha(), (screen_w, screen_h)),
+        pygame.transform.scale(pygame.image.load("game/assets/images/bg_ice.png").convert_alpha(), (screen_w, screen_h)),
+        pygame.transform.scale(pygame.image.load("game/assets/images/bg_tree_wooden.png").convert_alpha(), (screen_w, screen_h))
+    ]
+
 
 
 def draw_gear_button(screen):
@@ -152,6 +168,24 @@ def draw_game_end_screen(screen, message, color):
     
     return menu_button_rect
 
+#hiển thị màn thắng
+def draw_win_screen(screen):
+    overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 200)) 
+    screen.blit(overlay, (0, 0))
+
+    font_end = pygame.font.SysFont('Arial', 70, bold=True)
+    font_small = pygame.font.SysFont('Arial', 40)
+
+    title_text = font_end.render("ESCAPE SUCCESS!", True, (50, 255, 50))
+    title_rect = title_text.get_rect(center=(screen.get_width() // 2, screen.get_height() // 3))
+    screen.blit(title_text, title_rect)
+
+    subtext = font_small.render("Press ENTER to continue", True, (255, 255, 255))
+    subtext_rect = subtext.get_rect(center=(screen.get_width() // 2, screen.get_height() // 2))
+    screen.blit(subtext, subtext_rect)
+
+
 
 # --- HÀM KHỞI TẠO GAME ---
 
@@ -168,14 +202,16 @@ def setup_new_game(tiles, difficulty_name, screen):
     in_game_menu = InGameMenu(screen)
 
 
-def run_game_loop(screen, tiles):
-    global GAME_STATE, PAUSE_STATE 
+def run_game_loop(screen):
+    # global GAME_STATE, PAUSE_STATE
+    global GAME_STATE, PAUSE_STATE, current_map_index, tiles
     
     running = True
     clock = pygame.time.Clock()
     
     screen_w, screen_h = screen.get_size()
-    background_img = pygame.transform.scale(game_assets['background'], (screen_w, screen_h))
+    
+
 
     while running:
         clock.tick(config.FPS)
@@ -190,7 +226,17 @@ def run_game_loop(screen, tiles):
                     menu_button_rect = draw_game_end_screen(screen, "", (0, 0, 0)) 
                     if menu_button_rect.collidepoint(event.pos):
                         return "BACK_TO_MENU"
-                continue 
+
+                if GAME_STATE == WIN_STATE and event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
+                    # Sang map mới
+                    current_map_index = (current_map_index + 1) % len(game_assets['maps'])
+                    grid = generate_maze(config.MAZE_COLS, config.MAZE_ROWS)
+                    tiles = maze_to_tiles(grid, config.MAZE_COLS, config.MAZE_ROWS)
+                    setup_new_game(tiles, SELECTED_DIFFICULTY, screen)
+                    GAME_STATE = "GAME"
+
+                continue  # tránh xử lý sự kiện khác
+ 
 
             # --- LOGIC CHUYỂN ĐỔI AI ---
             if event.type == pygame.KEYDOWN:
@@ -204,6 +250,17 @@ def run_game_loop(screen, tiles):
                     GAME_STATE = "PAUSED"
                 elif GAME_STATE == "PAUSED":
                     GAME_STATE = "GAME" 
+
+            #--xử lý khi thắng-------        
+            if GAME_STATE == WIN_STATE:
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
+                    
+                    #global current_map_index
+                    current_map_index = (current_map_index + 1) % len(game_assets['maps'])
+                    grid = generate_maze(config.MAZE_COLS, config.MAZE_ROWS)
+                    tiles = maze_to_tiles(grid, config.MAZE_COLS, config.MAZE_ROWS)
+                    setup_new_game(tiles, SELECTED_DIFFICULTY, screen)
+                    GAME_STATE = "GAME"
 
             # Xử lý Click Nút Bánh Răng
             if event.type == pygame.MOUSEBUTTONDOWN and GAME_STATE == "GAME":
@@ -241,7 +298,8 @@ def run_game_loop(screen, tiles):
 
             if player.get_tile_position() == (EXIT_TILE_X, EXIT_TILE_Y):
                 GAME_STATE = WIN_STATE
-
+                
+        background_img = game_assets['backgrounds'][current_map_index]
         # --- VẼ CÁC THÀNH PHẦN ---
         screen.blit(background_img, (0, 0))
         
@@ -249,7 +307,9 @@ def run_game_loop(screen, tiles):
         if GAME_STATE == "GAME":
             pass # Logic update đã ở trên
             
-        render_maze(screen, tiles, game_assets['wall'])
+        render_maze(screen, tiles, game_assets['maps'][current_map_index])
+
+
         
         # Vẽ In/Out
         screen.blit(game_assets['in'], (1 * config.CELL_SIZE, 0))
@@ -266,7 +326,8 @@ def run_game_loop(screen, tiles):
         elif GAME_STATE == LOSE_STATE:
             draw_game_end_screen(screen, "YOU WERE CAUGHT!", (255, 50, 50))
         elif GAME_STATE == WIN_STATE:
-            draw_game_end_screen(screen, "ESCAPE SUCCESS!", (50, 255, 50))
+            draw_win_screen(screen)
+
 
         pygame.display.flip()
         
@@ -280,6 +341,7 @@ def main():
     pygame.key.set_repeat(100, 50) # BẬT KEY REPEAT CHO CHẾ ĐỘ TRƯỢT DÀI
     
     # Sinh mê cung (tạo map tĩnh để dễ quản lý)
+    global tiles
     grid = generate_maze(config.MAZE_COLS, config.MAZE_ROWS)
     tiles = maze_to_tiles(grid, config.MAZE_COLS, config.MAZE_ROWS)
 
@@ -290,7 +352,7 @@ def main():
     screen = pygame.display.set_mode((screen_w, screen_h))
     pygame.display.set_caption("Maze Escape")
     
-    load_game_assets() 
+    load_game_assets(screen) 
 
     menu = Menu(screen)
     clock = pygame.time.Clock()
@@ -321,7 +383,7 @@ def main():
             menu.draw()
             
         elif GAME_STATE == "GAME" or GAME_STATE == "PAUSED" or GAME_STATE == WIN_STATE or GAME_STATE == LOSE_STATE: 
-            result = run_game_loop(screen, tiles)
+            result = run_game_loop(screen)
             
             if result == "QUIT":
                 running = False

@@ -82,8 +82,9 @@ def add_extra_passages(grid, cols, rows, extra_prob=0.15):
                     remove_wall(cell, nxt)
 
 
-def maze_to_tiles(grid, cols, rows):
-    """Chuyển mê cung sang ma trận tiles (0 = đường, 1 = tường)"""
+def maze_to_tiles(grid, cols, rows, wide_prob=0.1):
+    """Chuyển mê cung sang ma trận tiles (0 = đường, 1 = tường),
+       với một số đoạn hành lang rộng 2 ô"""
     h = rows * 2 + 1
     w = cols * 2 + 1
     tiles = [[1 for _ in range(w)] for _ in range(h)]
@@ -108,10 +109,21 @@ def maze_to_tiles(grid, cols, rows):
 
     # 🔒 Ép viền ngoài = tường
     for x in range(w):
-        tiles[0][x] = 1          # hàng trên
-        tiles[h - 1][x] = 1      # hàng dưới
+        tiles[0][x] = 1
+        tiles[h - 1][x] = 1
     for y in range(h):
-        tiles[y][0] = 1          # cột trái
-        tiles[y][w - 1] = 1      # cột phải
+        tiles[y][0] = 1
+        tiles[y][w - 1] = 1
+
+    # 🟢 Mở rộng ngẫu nhiên hành lang
+    for y in range(1, h-1):
+        for x in range(1, w-1):
+            if tiles[y][x] == 0 and random.random() < wide_prob:
+                # Chọn ngẫu nhiên 1 hướng để mở rộng
+                direction = random.choice([(0,1),(0,-1),(1,0),(-1,0)])
+                nx, ny = x + direction[0], y + direction[1]
+                if 0 <= nx < w and 0 <= ny < h:
+                    tiles[ny][nx] = 0  # mở rộng thêm 1 ô bên cạnh
 
     return tiles
+
