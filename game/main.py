@@ -30,8 +30,8 @@ in_game_menu = None
 game_assets = {}
 tiles = None
 current_map_index = 0
-current_maze_tiles = None  # Lưu lại mê cung để chơi lại
-replay_stats_history = []  # Lưu lịch sử các lần chạy để so sánh
+current_maze_tiles = None
+replay_stats_history = []
 
 # Biến cho các nút bấm và bảng thông tin
 STATS_BUTTON_RECT = None
@@ -84,6 +84,10 @@ def load_game_assets(screen):
     ]
     game_assets['in'] = load_image("game/assets/images/in.png", size)
     game_assets['out'] = load_image("game/assets/images/out.png", size)
+
+    # Load ảnh dấu chân và thu nhỏ một chút
+    footprint_size = (config.CELL_SIZE // 2, config.CELL_SIZE // 2) 
+    game_assets['footprint'] = load_image("game/assets/images/footprint.png", footprint_size)
 
 # =======================================================================================
 # CÁC HÀM VẼ UI (NÚT BẤM, BẢNG, LỚP PHỦ)
@@ -147,37 +151,79 @@ def draw_ai_button(screen):
 def draw_edit_mode_overlay(screen):
     """Vẽ lớp phủ khi ở chế độ Edit."""
     global EXIT_EDIT_BUTTON_RECT
-    overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA); overlay.fill((255, 200, 0, 100)); screen.blit(overlay, (0, 0))
-    font_large = pygame.font.SysFont('Arial', 30, bold=True); font_small = pygame.font.SysFont('Arial', 20)
-    text = font_large.render("EDIT MODE", True, (0, 0, 0)); screen.blit(text, text.get_rect(center=(screen.get_width() // 2, 30)))
-    text2 = font_small.render("Click to toggle walls", True, (0, 0, 0)); screen.blit(text2, text2.get_rect(center=(screen.get_width() // 2, 70)))
+    overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+    overlay.fill((255, 200, 0, 100))
+    screen.blit(overlay, (0, 0))
+    
+    font_large = pygame.font.SysFont('Arial', 30, bold=True)
+    font_small = pygame.font.SysFont('Arial', 20)
+    
+    text = font_large.render("EDIT MODE", True, (0, 0, 0))
+    screen.blit(text, text.get_rect(center=(screen.get_width() // 2, 30)))
+    
+    text2 = font_small.render("Click to toggle walls", True, (0, 0, 0))
+    screen.blit(text2, text2.get_rect(center=(screen.get_width() // 2, 70)))
+    
     btn_w, btn_h = 120, 50
     EXIT_EDIT_BUTTON_RECT = pygame.Rect((screen.get_width() - btn_w) // 2, screen.get_height() - btn_h - 20, btn_w, btn_h)
     pygame.draw.rect(screen, (50, 200, 50), EXIT_EDIT_BUTTON_RECT, border_radius=8)
-    done_text = font_large.render("DONE", True, (255, 255, 255)); screen.blit(done_text, done_text.get_rect(center=EXIT_EDIT_BUTTON_RECT.center))
+    
+    done_text = font_large.render("DONE", True, (255, 255, 255))
+    screen.blit(done_text, done_text.get_rect(center=EXIT_EDIT_BUTTON_RECT.center))
 
 def draw_pause_menu(screen, in_game_menu):
     """Vẽ menu tạm dừng game."""
-    menu_rect = in_game_menu.menu_rect; buttons = in_game_menu.buttons
-    overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA); overlay.fill((0, 0, 0, 180)); screen.blit(overlay, (0, 0))
-    pygame.draw.rect(screen, (50, 50, 50), menu_rect, border_radius=10); pygame.draw.rect(screen, (255, 255, 255), menu_rect, 5, border_radius=10)
-    font_title = in_game_menu.font_title; font_button = in_game_menu.font_button
-    title_text = font_title.render("GAME PAUSED", True, (255, 255, 255)); title_rect = title_text.get_rect(center=(screen.get_width() // 2, menu_rect.top + 40)); screen.blit(title_text, title_rect)
-    rect_r = buttons["RESUME"]; pygame.draw.rect(screen, (50, 200, 50), rect_r, border_radius=5)
-    text_r = font_button.render("RESUME (ESC)", True, (0, 0, 0)); screen.blit(text_r, text_r.get_rect(center=rect_r.center))
-    rect_m = buttons["TO_MENU"]; pygame.draw.rect(screen, (200, 50, 50), rect_m, border_radius=5)
-    text_m = font_button.render("BACK TO MENU", True, (255, 255, 255)); screen.blit(text_m, text_m.get_rect(center=rect_m.center))
+    menu_rect = in_game_menu.menu_rect
+    buttons = in_game_menu.buttons
+    
+    overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 180))
+    screen.blit(overlay, (0, 0))
+    
+    pygame.draw.rect(screen, (50, 50, 50), menu_rect, border_radius=10)
+    pygame.draw.rect(screen, (255, 255, 255), menu_rect, 5, border_radius=10)
+    
+    font_title = in_game_menu.font_title
+    font_button = in_game_menu.font_button
+    
+    title_text = font_title.render("GAME PAUSED", True, (255, 255, 255))
+    title_rect = title_text.get_rect(center=(screen.get_width() // 2, menu_rect.top + 40))
+    screen.blit(title_text, title_rect)
+    
+    rect_r = buttons["RESUME"]
+    pygame.draw.rect(screen, (50, 200, 50), rect_r, border_radius=5)
+    text_r = font_button.render("RESUME (ESC)", True, (0, 0, 0))
+    screen.blit(text_r, text_r.get_rect(center=rect_r.center))
+    
+    rect_m = buttons["TO_MENU"]
+    pygame.draw.rect(screen, (200, 50, 50), rect_m, border_radius=5)
+    text_m = font_button.render("BACK TO MENU", True, (255, 255, 255))
+    screen.blit(text_m, text_m.get_rect(center=rect_m.center))
 
 def draw_game_end_screen(screen, message, color):
     """Vẽ màn hình kết thúc game chung (Thắng/Thua)."""
-    overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA); overlay.fill((0, 0, 0, 200)); screen.blit(overlay, (0, 0))
-    font_end = pygame.font.SysFont('Arial', 70, bold=True); font_small = pygame.font.SysFont('Arial', 40)
-    title_text = font_end.render(message, True, color); title_rect = title_text.get_rect(center=(screen.get_width() // 2, screen.get_height() // 3)); screen.blit(title_text, title_rect)
-    btn_w, btn_h = 300, 60; center_x = screen.get_width() // 2
+    overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 200))
+    screen.blit(overlay, (0, 0))
+    
+    font_end = pygame.font.SysFont('Arial', 70, bold=True)
+    font_small = pygame.font.SysFont('Arial', 40)
+    
+    title_text = font_end.render(message, True, color)
+    title_rect = title_text.get_rect(center=(screen.get_width() // 2, screen.get_height() // 3))
+    screen.blit(title_text, title_rect)
+    
+    btn_w, btn_h = 300, 60
+    center_x = screen.get_width() // 2
     menu_button_rect = pygame.Rect(center_x - (btn_w // 2), screen.get_height() // 2, btn_w, btn_h)
-    is_hover = menu_button_rect.collidepoint(pygame.mouse.get_pos()); btn_color = (100, 100, 100) if is_hover else (50, 50, 50)
+    
+    is_hover = menu_button_rect.collidepoint(pygame.mouse.get_pos())
+    btn_color = (100, 100, 100) if is_hover else (50, 50, 50)
     pygame.draw.rect(screen, btn_color, menu_button_rect, border_radius=10)
-    text = font_small.render("BACK TO MENU", True, (255, 255, 255)); screen.blit(text, text.get_rect(center=menu_button_rect.center))
+    
+    text = font_small.render("BACK TO MENU", True, (255, 255, 255))
+    screen.blit(text, text.get_rect(center=menu_button_rect.center))
+    
     return menu_button_rect
 
 def draw_win_screen(screen):
@@ -186,58 +232,127 @@ def draw_win_screen(screen):
 
 def draw_stats_button(screen):
     """Vẽ nút 'i' (Info) để xem thông tin thuật toán."""
-    global STATS_BUTTON_RECT; margin = 15; size = 40
+    global STATS_BUTTON_RECT
+    margin = 15
+    size = 40
     STATS_BUTTON_RECT = pygame.Rect(margin, margin, size, size)
-    pygame.draw.rect(screen, (200, 200, 200), STATS_BUTTON_RECT, border_radius=5); pygame.draw.rect(screen, (50, 50, 50), STATS_BUTTON_RECT, 3, 5)
-    font = pygame.font.SysFont('Arial', 30, bold=True); text = font.render("i", True, (0, 0, 0)); screen.blit(text, text.get_rect(center=STATS_BUTTON_RECT.center))
+    pygame.draw.rect(screen, (200, 200, 200), STATS_BUTTON_RECT, border_radius=5)
+    pygame.draw.rect(screen, (50, 50, 50), STATS_BUTTON_RECT, 3, 5)
+    font = pygame.font.SysFont('Arial', 30, bold=True)
+    text = font.render("i", True, (0, 0, 0))
+    screen.blit(text, text.get_rect(center=STATS_BUTTON_RECT.center))
 
 def draw_stats_panel(screen, stats_history):
     """Vẽ bảng so sánh thông tin của các thuật toán đã chạy."""
-    panel_w, panel_h = 750, 400; panel_rect = pygame.Rect((screen.get_width() - panel_w) / 2, (screen.get_height() - panel_h) / 2, panel_w, panel_h)
-    overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA); overlay.fill((0, 0, 0, 180)); screen.blit(overlay, (0, 0))
-    pygame.draw.rect(screen, (30, 30, 30), panel_rect, border_radius=10); pygame.draw.rect(screen, (200, 200, 200), panel_rect, 4, 10)
-    font_title = pygame.font.SysFont('Arial', 32, bold=True); font_header = pygame.font.SysFont('Arial', 22, bold=True); font_row = pygame.font.SysFont('Arial', 20)
-    title_text = font_title.render("Algorithm Comparison", True, (255, 255, 0)); screen.blit(title_text, title_text.get_rect(centerx=panel_rect.centerx, y=panel_rect.top + 20))
-    headers = ["Algorithm", "Time (ms)", "Path", "Nodes"]; col_positions = [panel_rect.left + 30, panel_rect.left + 320, panel_rect.left + 480, panel_rect.left + 610]
+    panel_w, panel_h = 750, 400
+    panel_rect = pygame.Rect((screen.get_width() - panel_w) / 2, (screen.get_height() - panel_h) / 2, panel_w, panel_h)
+    
+    overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 180))
+    screen.blit(overlay, (0, 0))
+    
+    pygame.draw.rect(screen, (30, 30, 30), panel_rect, border_radius=10)
+    pygame.draw.rect(screen, (200, 200, 200), panel_rect, 4, 10)
+    
+    font_title = pygame.font.SysFont('Arial', 32, bold=True)
+    font_header = pygame.font.SysFont('Arial', 22, bold=True)
+    font_row = pygame.font.SysFont('Arial', 20)
+    
+    title_text = font_title.render("Algorithm Comparison", True, (255, 255, 0))
+    screen.blit(title_text, title_text.get_rect(centerx=panel_rect.centerx, y=panel_rect.top + 20))
+    
+    headers = ["Algorithm", "Time (ms)", "Path", "Nodes"]
+    col_positions = [panel_rect.left + 30, panel_rect.left + 320, panel_rect.left + 480, panel_rect.left + 610]
     header_y = panel_rect.top + 80
+    
     for i, header in enumerate(headers):
-        header_surf = font_header.render(header, True, (255, 255, 255)); screen.blit(header_surf, (col_positions[i], header_y))
+        header_surf = font_header.render(header, True, (255, 255, 255))
+        screen.blit(header_surf, (col_positions[i], header_y))
+        
     pygame.draw.line(screen, (150, 150, 150), (panel_rect.left + 20, header_y + 30), (panel_rect.right - 20, header_y + 30), 2)
+    
     row_y_start = header_y + 50
     for i, stats in enumerate(stats_history):
         row_y = row_y_start + i * 35
-        data = [str(stats.get('name', 'N/A')), f"{stats.get('time', 0) * 1000:.2f}", str(stats.get('path_length', 0)), str(stats.get('nodes_expanded', 'N/A'))]
+        data = [
+            str(stats.get('name', 'N/A')), 
+            f"{stats.get('time', 0) * 1000:.2f}", 
+            str(stats.get('path_length', 0)), 
+            str(stats.get('nodes_expanded', 'N/A'))
+        ]
         for j, item in enumerate(data):
-            item_surf = font_row.render(item, True, (210, 210, 210)); screen.blit(item_surf, (col_positions[j], row_y))
-    close_btn_size = 30; close_btn_rect = pygame.Rect(panel_rect.right - close_btn_size - 10, panel_rect.top + 10, close_btn_size, close_btn_size)
+            item_surf = font_row.render(item, True, (210, 210, 210))
+            screen.blit(item_surf, (col_positions[j], row_y))
+            
+    close_btn_size = 30
+    close_btn_rect = pygame.Rect(panel_rect.right - close_btn_size - 10, panel_rect.top + 10, close_btn_size, close_btn_size)
     pygame.draw.rect(screen, (200, 50, 50), close_btn_rect, border_radius=5)
-    close_text = font_title.render("X", True, (255, 255, 255)); screen.blit(close_text, close_text.get_rect(center=close_btn_rect.center))
+    close_text = font_title.render("X", True, (255, 255, 255))
+    screen.blit(close_text, close_text.get_rect(center=close_btn_rect.center))
+    
     return close_btn_rect
 
 def draw_replay_button(screen):
     """Vẽ nút Replay để chơi lại trên cùng mê cung."""
-    global REPLAY_BUTTON_RECT; btn_w, btn_h = 180, 50; center_y = screen.get_height() // 2 + 70; center_x = screen.get_width() // 2
+    global REPLAY_BUTTON_RECT
+    btn_w, btn_h = 180, 50
+    center_y = screen.get_height() // 2 + 70
+    center_x = screen.get_width() // 2
     REPLAY_BUTTON_RECT = pygame.Rect(center_x - (btn_w / 2), center_y, btn_w, btn_h)
-    is_hover = REPLAY_BUTTON_RECT.collidepoint(pygame.mouse.get_pos()); btn_color = (60, 120, 200) if is_hover else (40, 80, 150)
+    
+    is_hover = REPLAY_BUTTON_RECT.collidepoint(pygame.mouse.get_pos())
+    btn_color = (60, 120, 200) if is_hover else (40, 80, 150)
     pygame.draw.rect(screen, btn_color, REPLAY_BUTTON_RECT, border_radius=10)
-    font = pygame.font.SysFont('Arial', 30, bold=True); text = font.render("Replay", True, (255, 255, 255)); screen.blit(text, text.get_rect(center=REPLAY_BUTTON_RECT.center))
+    
+    font = pygame.font.SysFont('Arial', 30, bold=True)
+    text = font.render("Replay", True, (255, 255, 255))
+    screen.blit(text, text.get_rect(center=REPLAY_BUTTON_RECT.center))
 
 def draw_replay_menu(screen):
     """Vẽ bảng chọn thuật toán mới để chơi lại."""
-    panel_w, panel_h = 500, 400; panel_rect = pygame.Rect((screen.get_width() - panel_w) / 2, (screen.get_height() - panel_h) / 2, panel_w, panel_h)
-    overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA); overlay.fill((0, 0, 0, 220)); screen.blit(overlay, (0, 0))
-    pygame.draw.rect(screen, (40, 40, 40), panel_rect, border_radius=10); pygame.draw.rect(screen, (180, 180, 180), panel_rect, 4, 10)
-    font_title = pygame.font.SysFont('Arial', 32, bold=True); font_button = pygame.font.SysFont('Arial', 24)
-    title_text = font_title.render("Select New Algorithm", True, (255, 255, 0)); screen.blit(title_text, title_text.get_rect(centerx=panel_rect.centerx, y=panel_rect.top + 20))
-    algorithms = list(PATHFINDING_ALGORITHMS.keys()); button_rects = {}; mouse_pos = pygame.mouse.get_pos()
+    panel_w, panel_h = 500, 400
+    panel_rect = pygame.Rect((screen.get_width() - panel_w) / 2, (screen.get_height() - panel_h) / 2, panel_w, panel_h)
+    
+    overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 220))
+    screen.blit(overlay, (0, 0))
+    
+    pygame.draw.rect(screen, (40, 40, 40), panel_rect, border_radius=10)
+    pygame.draw.rect(screen, (180, 180, 180), panel_rect, 4, 10)
+    
+    font_title = pygame.font.SysFont('Arial', 32, bold=True)
+    font_button = pygame.font.SysFont('Arial', 24)
+    
+    title_text = font_title.render("Select New Algorithm", True, (255, 255, 0))
+    screen.blit(title_text, title_text.get_rect(centerx=panel_rect.centerx, y=panel_rect.top + 20))
+    
+    algorithms = list(PATHFINDING_ALGORITHMS.keys())
+    button_rects = {}
+    mouse_pos = pygame.mouse.get_pos()
+    
     for i, algo_name in enumerate(algorithms):
         btn_rect = pygame.Rect(panel_rect.left + 50, panel_rect.top + 80 + i * 55, panel_w - 100, 45)
-        is_hover = btn_rect.collidepoint(mouse_pos); btn_color = (100, 100, 100) if is_hover else (70, 70, 70)
+        is_hover = btn_rect.collidepoint(mouse_pos)
+        btn_color = (100, 100, 100) if is_hover else (70, 70, 70)
         pygame.draw.rect(screen, btn_color, btn_rect, border_radius=8)
-        text_surf = font_button.render(algo_name, True, (255, 255, 255)); screen.blit(text_surf, text_surf.get_rect(center=btn_rect.center))
+        text_surf = font_button.render(algo_name, True, (255, 255, 255))
+        screen.blit(text_surf, text_surf.get_rect(center=btn_rect.center))
         button_rects[algo_name] = btn_rect
+        
     return button_rects
 
+
+def draw_footprints(screen, player, footprint_img):
+    """Vẽ tất cả dấu chân đã được lưu lại của người chơi."""
+    if not player or not player.footprints:
+        return
+
+    for pos in player.footprints:
+        # Tính toán vị trí để vẽ dấu chân ở giữa ô
+        pos_x = pos[0] * config.CELL_SIZE + (config.CELL_SIZE - footprint_img.get_width()) / 2
+        pos_y = pos[1] * config.CELL_SIZE + (config.CELL_SIZE - footprint_img.get_height()) / 2
+        
+        screen.blit(footprint_img, (pos_x, pos_y))
 # =======================================================================================
 # LOGIC CHÍNH CỦA GAME
 # =======================================================================================
@@ -245,22 +360,27 @@ def draw_replay_menu(screen):
 def setup_new_game(tiles_data, difficulty_name, algorithm_name, map_idx, screen):
     """Khởi tạo hoặc reset các đối tượng cho một màn chơi mới."""
     global player, guard_manager, SELECTED_DIFFICULTY, in_game_menu, current_map_index, tiles
-    tiles = tiles_data; SELECTED_DIFFICULTY = difficulty_name; current_map_index = map_idx
+    tiles = tiles_data
+    SELECTED_DIFFICULTY = difficulty_name
+    current_map_index = map_idx
     player = Player(1, 1, tiles, algorithm_name=algorithm_name)
     guard_manager = GuardManager(tiles, difficulty=difficulty_name)
-    guard_manager.spawn_guards(); in_game_menu = InGameMenu(screen)
+    guard_manager.spawn_guards()
+    in_game_menu = InGameMenu(screen)
 
 def run_game_loop(screen):
     """Vòng lặp chính xử lý logic khi đang trong màn chơi."""
     global GAME_STATE, STATS_PANEL_VISIBLE, tiles, GUARDS_VISIBLE
-    running = True; clock = pygame.time.Clock()
+    running = True
+    clock = pygame.time.Clock()
 
     while running:
         clock.tick(config.FPS)
         
         # --- XỬ LÝ SỰ KIỆN (INPUT) ---
         for event in pygame.event.get():
-            if event.type == pygame.QUIT: return "QUIT"
+            if event.type == pygame.QUIT:
+                return "QUIT"
 
             # Xử lý input khi đang ở màn hình chọn thuật toán Replay
             if GAME_STATE == REPLAY_SELECT_STATE:
@@ -269,7 +389,8 @@ def run_game_loop(screen):
                     for algo_name, rect in algo_buttons.items():
                         if rect.collidepoint(event.pos):
                             setup_new_game(current_maze_tiles, SELECTED_DIFFICULTY, algo_name, current_map_index, screen)
-                            GAME_STATE = "GAME"; break
+                            GAME_STATE = "GAME"
+                            break
                 continue
 
             # Xử lý input khi đang ở màn hình Thắng/Thua
@@ -282,22 +403,32 @@ def run_game_loop(screen):
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     if STATS_PANEL_VISIBLE:
                         close_rect = draw_stats_panel(screen, replay_stats_history)
-                        if close_rect.collidepoint(event.pos): STATS_PANEL_VISIBLE = False
+                        if close_rect.collidepoint(event.pos):
+                            STATS_PANEL_VISIBLE = False
                     else:
-                        if GAME_STATE == WIN_STATE: menu_rect = draw_win_screen(screen)
-                        else: menu_rect = draw_game_end_screen(screen, "YOU WERE CAUGHT!", (255, 50, 50))
-                        draw_stats_button(screen); draw_replay_button(screen)
+                        if GAME_STATE == WIN_STATE:
+                            menu_rect = draw_win_screen(screen)
+                        else:
+                            menu_rect = draw_game_end_screen(screen, "YOU WERE CAUGHT!", (255, 50, 50))
                         
-                        if STATS_BUTTON_RECT and STATS_BUTTON_RECT.collidepoint(event.pos): STATS_PANEL_VISIBLE = True
-                        elif REPLAY_BUTTON_RECT and REPLAY_BUTTON_RECT.collidepoint(event.pos): GAME_STATE = REPLAY_SELECT_STATE
+                        draw_stats_button(screen)
+                        draw_replay_button(screen)
+                        
+                        if STATS_BUTTON_RECT and STATS_BUTTON_RECT.collidepoint(event.pos):
+                            STATS_PANEL_VISIBLE = True
+                        elif REPLAY_BUTTON_RECT and REPLAY_BUTTON_RECT.collidepoint(event.pos):
+                            GAME_STATE = REPLAY_SELECT_STATE
                         elif menu_rect.collidepoint(event.pos):
-                            STATS_PANEL_VISIBLE = False; return "BACK_TO_MENU"
+                            STATS_PANEL_VISIBLE = False
+                            return "BACK_TO_MENU"
                 continue
             
             # Xử lý input bàn phím trong game
             if event.type == pygame.KEYDOWN:
-                if event.key == EDIT_TOGGLE_KEY: GAME_STATE = EDIT_STATE if GAME_STATE == "GAME" else "GAME"
-                if event.key == pygame.K_ESCAPE: GAME_STATE = "PAUSED" if GAME_STATE == "GAME" else "GAME"
+                if event.key == EDIT_TOGGLE_KEY:
+                    GAME_STATE = EDIT_STATE if GAME_STATE == "GAME" else "GAME"
+                if event.key == pygame.K_ESCAPE:
+                    GAME_STATE = "PAUSED" if GAME_STATE == "GAME" else "GAME"
 
             # Xử lý input chuột trong game
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -308,47 +439,66 @@ def run_game_loop(screen):
                     elif AI_BUTTON_RECT and AI_BUTTON_RECT.collidepoint(event.pos):
                         if player: player.ai_mode = not player.ai_mode
                 elif GAME_STATE == EDIT_STATE:
-                    if EXIT_EDIT_BUTTON_RECT and EXIT_EDIT_BUTTON_RECT.collidepoint(event.pos): GAME_STATE = "GAME"
+                    if EXIT_EDIT_BUTTON_RECT and EXIT_EDIT_BUTTON_RECT.collidepoint(event.pos):
+                        GAME_STATE = "GAME"
                     else:
-                        mx, my = pygame.mouse.get_pos(); tile_x, tile_y = mx // config.CELL_SIZE, my // config.CELL_SIZE
+                        mx, my = pygame.mouse.get_pos()
+                        tile_x, tile_y = mx // config.CELL_SIZE, my // config.CELL_SIZE
                         if 0 <= tile_y < len(tiles) and 0 <= tile_x < len(tiles[0]):
                             if (tile_x, tile_y) not in [(1,1), (EXIT_TILE_X, EXIT_TILE_Y), (EXIT_TILE_X, EXIT_TILE_Y+1)]:
-                                tiles[tile_y][tile_x] = 1 - tiles[tile_y][tile_x]; invalidate_all_ai_paths()
+                                tiles[tile_y][tile_x] = 1 - tiles[tile_y][tile_x]
+                                invalidate_all_ai_paths()
 
             # Xử lý menu pause
             if GAME_STATE == "PAUSED":
                 action = in_game_menu.handle_input(event)
-                if action == "RESUME": GAME_STATE = "GAME"
-                elif action == "BACK_TO_MENU": return "BACK_TO_MENU"
+                if action == "RESUME":
+                    GAME_STATE = "GAME"
+                elif action == "BACK_TO_MENU":
+                    return "BACK_TO_MENU"
             
             # Xử lý di chuyển của người chơi
-            if GAME_STATE == "GAME" and player and not player.ai_mode: player.handle_input()
+            if GAME_STATE == "GAME" and player and not player.ai_mode:
+                player.handle_input()
 
         # --- CẬP NHẬT LOGIC GAME ---
         if GAME_STATE == "GAME":
             guard_list = guard_manager.guards if GUARDS_VISIBLE else []
-            if player.ai_mode: player.handle_ai_move(tiles, (EXIT_TILE_X, EXIT_TILE_Y + 1), guard_list)
+            if player.ai_mode:
+                player.handle_ai_move(tiles, (EXIT_TILE_X, EXIT_TILE_Y + 1), guard_list)
             
             if GUARDS_VISIBLE:
                 guard_manager.update(player)
                 for guard in guard_list:
-                    if player.check_collision_with_guard(guard): GAME_STATE = LOSE_STATE; break
+                    if player.check_collision_with_guard(guard):
+                        GAME_STATE = LOSE_STATE
+                        break
             
-            player_tile_x = int(round(player.x)); player_tile_y = int(round(player.y))
-            if player_tile_x == EXIT_TILE_X and player_tile_y == (EXIT_TILE_Y + 1): GAME_STATE = WIN_STATE
+            player_tile_x = int(round(player.x))
+            player_tile_y = int(round(player.y))
+            if player_tile_x == EXIT_TILE_X and player_tile_y == (EXIT_TILE_Y + 1):
+                GAME_STATE = WIN_STATE
 
         # --- VẼ MỌI THỨ LÊN MÀN HÌNH ---
         screen.blit(game_assets['backgrounds'][current_map_index], (0, 0))
         render_maze(screen, tiles, game_assets['maps'][current_map_index])
+        if player:
+            draw_footprints(screen, player, game_assets['footprint'])
+
         screen.blit(game_assets['in'], (1 * config.CELL_SIZE, 0))
         screen.blit(game_assets['out'], (EXIT_TILE_X * config.CELL_SIZE, (EXIT_TILE_Y + 1) * config.CELL_SIZE))
         
-        if GUARDS_VISIBLE and guard_manager: guard_manager.draw(screen)
-        if player: player.draw(screen)
+        if GUARDS_VISIBLE and guard_manager:
+            guard_manager.draw(screen)
+        if player:
+            player.draw(screen)
         
         # Vẽ các lớp phủ và UI theo trạng thái game
         if GAME_STATE == "GAME":
-            draw_gear_button(screen); draw_edit_button(screen); draw_hide_guards_button(screen); draw_ai_button(screen)
+            draw_gear_button(screen)
+            draw_edit_button(screen)
+            draw_hide_guards_button(screen)
+            draw_ai_button(screen)
         elif GAME_STATE == "PAUSED":
             draw_pause_menu(screen, in_game_menu)
         elif GAME_STATE == EDIT_STATE:
@@ -359,7 +509,8 @@ def run_game_loop(screen):
             
             if not STATS_PANEL_VISIBLE:
                 draw_game_end_screen(screen, message, color)
-                draw_stats_button(screen); draw_replay_button(screen)
+                draw_stats_button(screen)
+                draw_replay_button(screen)
             else:
                 draw_stats_panel(screen, replay_stats_history)
         
@@ -373,21 +524,28 @@ def run_game_loop(screen):
 def main():
     """Hàm chính, khởi tạo Pygame và quản lý vòng lặp chính."""
     global GAME_STATE, STATS_PANEL_VISIBLE, current_maze_tiles, replay_stats_history
-    pygame.init(); pygame.key.set_repeat(100, 50)
+    pygame.init()
+    pygame.key.set_repeat(100, 50)
     
     # Tạo mê cung ban đầu để xác định kích thước màn hình
-    grid = generate_maze(config.MAZE_COLS, config.MAZE_ROWS); initial_tiles = maze_to_tiles(grid, config.MAZE_COLS, config.MAZE_ROWS)
-    screen_w = len(initial_tiles[0]) * config.CELL_SIZE; screen_h = len(initial_tiles) * config.CELL_SIZE
-    screen = pygame.display.set_mode((screen_w, screen_h)); pygame.display.set_caption("Maze Escape")
+    grid = generate_maze(config.MAZE_COLS, config.MAZE_ROWS)
+    initial_tiles = maze_to_tiles(grid, config.MAZE_COLS, config.MAZE_ROWS)
+    screen_w = len(initial_tiles[0]) * config.CELL_SIZE
+    screen_h = len(initial_tiles) * config.CELL_SIZE
+    screen = pygame.display.set_mode((screen_w, screen_h))
+    pygame.display.set_caption("Maze Escape")
     
-    load_game_assets(screen); menu = Menu(screen); clock = pygame.time.Clock()
+    load_game_assets(screen)
+    menu = Menu(screen)
+    clock = pygame.time.Clock()
     running = True
 
     while running:
         clock.tick(config.FPS)
         
         for event in pygame.event.get():
-            if event.type == pygame.QUIT: running = False
+            if event.type == pygame.QUIT:
+                running = False
             
             if GAME_STATE == "MENU":
                 action, difficulty, algorithm, map_idx = menu.handle_input(event)
@@ -395,19 +553,23 @@ def main():
                     replay_stats_history.clear() # Xóa lịch sử so sánh khi bắt đầu game mới
                     new_grid = generate_maze(config.MAZE_COLS, config.MAZE_ROWS)
                     new_tiles = maze_to_tiles(new_grid, config.MAZE_COLS, config.MAZE_ROWS)
-                    if (EXIT_TILE_Y + 1) < len(new_tiles): new_tiles[EXIT_TILE_Y + 1][EXIT_TILE_X] = 0
+                    if (EXIT_TILE_Y + 1) < len(new_tiles):
+                        new_tiles[EXIT_TILE_Y + 1][EXIT_TILE_X] = 0
                     current_maze_tiles = [row[:] for row in new_tiles] # Lưu lại mê cung để chơi lại
                     setup_new_game(new_tiles, difficulty, algorithm, map_idx, screen)
                     GAME_STATE = "GAME"
-                elif action == "QUIT": running = False
+                elif action == "QUIT":
+                    running = False
 
         if GAME_STATE == "MENU":
             menu.draw()
         else:
             result = run_game_loop(screen)
-            if result == "QUIT": running = False
+            if result == "QUIT":
+                running = False
             elif result == "BACK_TO_MENU":
-                GAME_STATE = "MENU"; STATS_PANEL_VISIBLE = False
+                GAME_STATE = "MENU"
+                STATS_PANEL_VISIBLE = False
         
         pygame.display.flip()
         

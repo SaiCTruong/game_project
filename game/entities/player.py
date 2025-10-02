@@ -1,8 +1,7 @@
 import pygame
 import math
-from game import config
-# <<< THAY ĐỔI 1: Import thêm thư viện time và PATHFINDING_ALGORITHMS >>>
 import time
+from game import config
 from game.ai.pathfinding import PATHFINDING_ALGORITHMS, find_path
 
 EVASION_RADIUS = 7
@@ -13,6 +12,7 @@ class Player:
         self.x, self.y = start_x, start_y
         self.size = config.CELL_SIZE
         
+        # --- (Phần load animation giữ nguyên) ---
         sprite_sheet = pygame.image.load("game/assets/images/player.png").convert_alpha()
         sheet_w, sheet_h = sprite_sheet.get_size()
         frame_w, frame_h = sheet_w // 4, sheet_h // 4
@@ -37,17 +37,27 @@ class Player:
         
         self.algorithm_name = algorithm_name
         self.pathfinding_algorithm = PATHFINDING_ALGORITHMS[algorithm_name]
-
-        # <<< THAY ĐỔI 2: Thêm thuộc tính để lưu stats >>>
         self.pathfinding_stats = None
+
+        # <<< THAY ĐỔI 1: Chỉ cần danh sách dấu chân, không cần delay >>>
+        self.footprints = []
 
     def move(self, dx, dy, direction):
         new_x, new_y = self.x + dx, self.y + dy
         if 0 <= new_y < len(self.tiles) and 0 <= new_x < len(self.tiles[0]) and self.tiles[new_y][new_x] == 0:
+            
+            # <<< THAY ĐỔI 2: Tạo dấu chân tại vị trí cũ mỗi khi di chuyển thành công >>>
+            old_pos = (self.x, self.y)
+            # Chỉ thêm nếu vị trí mới khác vị trí cuối cùng trong danh sách
+            if not self.footprints or self.footprints[-1] != old_pos:
+                self.footprints.append(old_pos)
+
+            # Cập nhật vị trí mới
             self.x, self.y = new_x, new_y
             self.direction = direction
             self.is_moving = True
             return True
+            
         self.is_moving = False
         return False
 
