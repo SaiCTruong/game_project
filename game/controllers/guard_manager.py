@@ -30,6 +30,14 @@ class GuardManager:
     def spawn_guards(self):
         self.guards = [] 
         
+        # <<< BẮT ĐẦU THAY ĐỔI >>>
+        
+        # 1. Định nghĩa khoảng cách an toàn tối thiểu (tính bằng số ô)
+        #    Bạn có thể thay đổi số 8 này để game dễ hơn hoặc khó hơn.
+        MIN_SPAWN_DISTANCE = 8
+        player_start_pos = (1, 1) # Vị trí bắt đầu của người chơi
+
+        # 2. Lấy tất cả các ô có thể đi được như cũ
         free_tiles = [
             (x, y)
             for y in range(len(self.tiles))
@@ -37,15 +45,35 @@ class GuardManager:
             if self.tiles[y][x] == 0 
         ]
         
-        if (1, 1) in free_tiles: free_tiles.remove((1, 1))
+        # 3. Lọc ra danh sách các vị trí spawn "an toàn"
+        #    Chỉ giữ lại những ô có khoảng cách (Manhattan distance) >= khoảng cách tối thiểu
+        safe_spawn_locations = [
+            tile for tile in free_tiles
+            if (abs(tile[0] - player_start_pos[0]) + abs(tile[1] - player_start_pos[1])) >= MIN_SPAWN_DISTANCE
+        ]
+        
+        # 4. Xác định số lượng guard cần spawn
+        spawn_count = self.guard_count
 
-        if len(free_tiles) < self.guard_count:
-             print(f"CẢNH BÁO: Chỉ có thể spawn {len(free_tiles)} guards.")
-             spawn_count = len(free_tiles)
+        # 5. Kiểm tra xem có đủ vị trí an toàn để spawn không
+        if len(safe_spawn_locations) < spawn_count:
+            print(f"CẢNH BÁO: Không đủ vị trí spawn an toàn. Cố gắng spawn từ tất cả các vị trí có thể.")
+            # Nếu không đủ, dùng lại danh sách cũ và loại bỏ vị trí người chơi
+            if player_start_pos in free_tiles:
+                free_tiles.remove(player_start_pos)
+            
+            # Đảm bảo không spawn nhiều hơn số ô trống có
+            num_to_spawn = min(spawn_count, len(free_tiles))
+            if num_to_spawn > 0:
+                spawn_positions = random.sample(free_tiles, num_to_spawn)
+            else:
+                spawn_positions = [] # Không có chỗ để spawn
+
         else:
-             spawn_count = self.guard_count
+            # Nếu đủ, chọn ngẫu nhiên từ danh sách các vị trí an toàn
+            spawn_positions = random.sample(safe_spawn_locations, spawn_count)
 
-        spawn_positions = random.sample(free_tiles, spawn_count)
+        # <<< KẾT THÚC THAY ĐỔI >>>
         
         for pos in spawn_positions:
             self.add_guard(pos[0], pos[1])

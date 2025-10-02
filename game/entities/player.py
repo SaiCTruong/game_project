@@ -8,7 +8,6 @@ from game.ai.astar import astar_path
 
 # Hằng số cho logic Né tránh
 EVASION_RADIUS = 7 
-EVASION_BUFFER = 10 
 
 class Player:
     def __init__(self, start_x, start_y, tiles):
@@ -40,7 +39,7 @@ class Player:
         self.is_moving = False
 
         # --- Thuộc tính AI ---
-        self.ai_mode = False        
+        self.ai_mode = False       
         self.ai_path = []          
         self.ai_path_index = 0
         self.is_evading = False 
@@ -78,6 +77,30 @@ class Player:
                 return True
         return False
 
+    # <<< NÂNG CẤP 2: HÀM TÌM NƠI TRÚ ẨN THÔNG MINH >>>
+    def find_best_evasion_spot(self, current_tile, guards):
+        """Quét các ô xung quanh để tìm điểm né tránh tốt nhất."""
+        best_spot = None
+        max_score = -float('inf')
+        
+        scan_radius = 10 
+        for y in range(max(0, current_tile[1] - scan_radius), min(len(self.tiles), current_tile[1] + scan_radius)):
+            for x in range(max(0, current_tile[0] - scan_radius), min(len(self.tiles[0]), current_tile[0] + scan_radius)):
+                if self.tiles[y][x] != 0:
+                    continue
+
+                spot = (x, y)
+                dist_to_nearest_guard = min([abs(spot[0] - g.tile_x) + abs(spot[1] - g.tile_y) for g in guards])
+                dist_from_player = abs(spot[0] - current_tile[0]) + abs(spot[1] - current_tile[1])
+                
+                score = 1.5 * dist_to_nearest_guard - dist_from_player
+                
+                if score > max_score:
+                    max_score = score
+                    best_spot = spot
+                    
+        return best_spot if best_spot else current_tile
+
     def handle_ai_move(self, tiles, exit_tile, guards):
         AI_MOVE_DELAY = 80 
         now = pygame.time.get_ticks()
@@ -86,60 +109,54 @@ class Player:
             return
 
         current_tile = self.get_tile_position()
-        ai_goal = exit_tile
         
-        # --- 1. XÁC ĐỊNH TRẠNG THÁI NÉ TRÁNH ---
+        # <<< SỬA LỖI: CẤU TRÚC LẠI LOGIC GÁN BIẾN AI_GOAL >>>
+
+        # --- 1. CẬP NHẬT TRẠNG THÁI NÉ TRÁNH (UPDATE EVASION STATE) ---
+        # Đầu tiên, luôn tính khoảng cách để xác định trạng thái hiện tại
         nearest_guard_dist = float('inf')
         if guards:
             nearest_guard = min(guards, key=lambda g: abs(current_tile[0] - g.tile_x) + abs(current_tile[1] - g.tile_y))
             nearest_guard_dist = abs(current_tile[0] - nearest_guard.tile_x) + abs(current_tile[1] - nearest_guard.tile_y)
-            
-            if nearest_guard_dist <= EVASION_RADIUS:
-                if not self.is_evading:
-                    self.ai_path = []
-                self.is_evading = True
-                gx, gy = nearest_guard.tile_x, nearest_guard.tile_y
-                escape_vector_x, escape_vector_y = current_tile[0] - gx, current_tile[1] - gy
-                magnitude = math.sqrt(escape_vector_x**2 + escape_vector_y**2) or 1
-                TARGET_DISTANCE = 25 
-                target_x = current_tile[0] + int(TARGET_DISTANCE * (escape_vector_x / magnitude))
-                target_y = current_tile[1] + int(TARGET_DISTANCE * (escape_vector_y / magnitude))
-                target_x = max(1, min(len(tiles[0]) - 2, target_x))
-                target_y = max(1, min(len(tiles) - 2, target_y))
-                ai_goal = (target_x, target_y)
-            elif self.is_evading and nearest_guard_dist > EVASION_RADIUS + 5:
-                self.is_evading = False
-                self.ai_path = [] 
-        
-        if not self.is_evading:
+
+        # Cập nhật trạng thái is_evading dứt khoát dựa trên khoảng cách
+        if nearest_guard_dist <= EVASION_RADIUS:
+            if not self.is_evading: # Nếu vừa chuyển sang né, reset path cũ
+                self.ai_path = []
+            self.is_evading = True
+        elif nearest_guard_dist > EVASION_RADIUS + 2:
+            if self.is_evading: # Nếu vừa thoát khỏi né, reset path cũ
+                self.ai_path = []
+            self.is_evading = False
+        # Nếu khoảng cách nằm giữa EVASION_RADIUS và EVASION_RADIUS + 2, giữ nguyên trạng thái cũ.
+
+        # --- 2. XÁC ĐỊNH MỤC TIÊU DỰA TRÊN TRẠNG THÁI (DETERMINE GOAL) ---
+        # Sau khi đã có trạng thái chắc chắn, ta gán mục tiêu.
+        # Biến ai_goal giờ đây sẽ luôn được gán giá trị.
+        if self.is_evading:
+            ai_goal = self.find_best_evasion_spot(current_tile, guards)
+        else: # Không né tránh
             ai_goal = exit_tile
 
-        # --- 2. TÍNH TOÁN LẠI ĐƯỜNG ĐI ---
+        # --- 3. TÍNH TOÁN LẠI ĐƯỜNG ĐI KHI CẦN ---
         is_path_empty = not self.ai_path or self.ai_path_index >= len(self.ai_path)
         is_current_path_unsafe = self.check_if_path_is_unsafe(guards) 
         
         if is_path_empty or is_current_path_unsafe:
             self.ai_path_index = 0
-            new_path = None
             
-            if self.is_evading:
-                # Khi né tránh, cứ tìm đường nhanh nhất đến điểm an toàn
-                new_path = astar_path(tiles, current_tile, ai_goal) 
-            else:
-                # Khi bình thường, CHỈ tìm đường đi an toàn
-                new_path = astar_path(tiles, current_tile, ai_goal, guards=guards) 
+            # Luôn tìm đường đi an toàn, vì ai_goal đã được xác định ở trên
+            new_path = astar_path(tiles, current_tile, ai_goal, guards=guards)
 
-            # Xử lý kết quả tìm đường
             if new_path and len(new_path) > 1:
                 self.ai_path = new_path
                 self.ai_path_index = 1
             else:
-                # Nếu không tìm thấy đường (an toàn), hãy đứng im và chờ
                 self.is_moving = False
-                self.ai_path = [] # Xóa đường đi cũ để buộc tìm lại ở lần sau
+                self.ai_path = []
                 return 
 
-        # --- 3. THỰC HIỆN DI CHUYỂN ---
+        # --- 4. THỰC HIỆN DI CHUYỂN ---
         if self.ai_path and self.ai_path_index < len(self.ai_path):
             next_tile_x, next_tile_y = self.ai_path[self.ai_path_index]
             dx = next_tile_x - current_tile[0]
@@ -155,9 +172,10 @@ class Player:
                 self.ai_path_index += 1
                 self.last_move_time = now
         else:
-             self.is_moving = False
+            self.is_moving = False
 
     def handle_input(self):
+        # ... (Hàm này giữ nguyên)
         if self.ai_mode: return 
         keys = pygame.key.get_pressed()
         now = pygame.time.get_ticks()
@@ -171,6 +189,7 @@ class Player:
             if moved: self.last_move_time = now
 
     def update_animation(self):
+        # ... (Hàm này giữ nguyên)
         if self.is_moving: 
             now = pygame.time.get_ticks()
             if now - self.last_anim_time > self.anim_speed:
@@ -180,6 +199,7 @@ class Player:
             self.frame_index = 0 
 
     def draw(self, screen):
+        # ... (Hàm này giữ nguyên)
         self.update_animation()
         frame = self.animations[self.direction][self.frame_index]
         screen.blit(frame, (self.x * self.size, self.y * self.size))

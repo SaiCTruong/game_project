@@ -40,8 +40,8 @@ DIFFICULTY_SETTINGS = {
         "DETECT_RADIUS": 5
     },
     "EXPERT": {
-        "DISPLAY_NAME": "EXPERT (4 Guards, Max Speed)",
-        "GUARD_COUNT": 4,
+        "DISPLAY_NAME": "EXPERT (2 Guards, Max Speed)",
+        "GUARD_COUNT": 2,
         "ALGORITHM_MODE": "A_STAR", 
         "CHASE_SPEED": 4,
         "DETECT_RADIUS": 6
