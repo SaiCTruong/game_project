@@ -2,223 +2,139 @@
 import pygame
 import os 
 from game import config
+# <<< IMPORT THƯ VIỆN THUẬT TOÁN MỚI >>>
+from game.ai.pathfinding import PATHFINDING_ALGORITHMS
 
 class Menu:
     def __init__(self, screen):
         self.screen = screen
         self.width, self.height = screen.get_size()
         
-        # --- Font Initialization ---
         pygame.font.init()
         try:
             self.font_large = pygame.font.SysFont('Arial', 60, bold=True)
             self.font_button = pygame.font.SysFont('Arial', 28, bold=True) 
             self.font_medium = pygame.font.SysFont('Arial', 25)
-        except:
+            self.font_algo = pygame.font.SysFont('Arial', 22) # Font cho thuật toán
+        except Exception:
             self.font_large = pygame.font.Font(None, 60)
             self.font_button = pygame.font.Font(None, 28)
             self.font_medium = pygame.font.Font(None, 25)
-            
-        self.COLOR_WHITE = (255, 255, 255)
-        self.COLOR_BLACK = (0, 0, 0)
-        self.COLOR_RED_TEXT = (255, 100, 100) 
-        self.COLOR_GREEN_BTN = (50, 200, 50) 
-        self.COLOR_RED_BTN = (200, 50, 50)   
+            self.font_algo = pygame.font.Font(None, 22)
 
         self.current_difficulty = "NORMAL"
-        self.buttons = self._setup_buttons()
 
-        # --- Tải Background Menu ---
+        # <<< THÊM BIẾN CHO THUẬT TOÁN >>>
+        self.algorithms = list(PATHFINDING_ALGORITHMS.keys())
+        self.current_algorithm = self.algorithms[0]
+        
+        # Sẽ setup button trong hàm draw để linh hoạt hơn
+        self.buttons = {}
+        self.algo_buttons = {}
+
+        # ... (Phần load background và ảnh nút giữ nguyên)
         bg_path = "game/assets/images/background-menu.png"
         self.background_menu = None
         if os.path.exists(bg_path):
             original_bg = pygame.image.load(bg_path).convert_alpha()
-            scale_factor = self.height / original_bg.get_height()
-            self.background_menu = pygame.transform.scale(
-                original_bg, 
-                (int(original_bg.get_width() * scale_factor), self.height)
-            )
-            self.bg_width = self.background_menu.get_width()
-        else:
-            print("Cảnh báo: Không tìm thấy background_menu.png. Dùng nền đen.")
-            
-        self.bg_x = 0  
-        self.scroll_speed = 0.5  
-
-        # --- Tải Hình ảnh Nút Bấm MỚI ---
-        # Kích thước tải ảnh: START và EXIT có kích thước khác nhau
-        self.button_size_play = (self.buttons["PLAY"].width, self.buttons["PLAY"].height)
-        self.button_size_exit = (self.buttons["EXIT"].width, self.buttons["EXIT"].height)
+            self.background_menu = pygame.transform.scale(original_bg, (self.width, self.height))
         
-        # 1. Nút START (Green)
+        self.button_size_play = (200, 150)
+        self.button_size_exit = (200, 150)
         self.button_green_normal = self._load_button_image("button_green_hover.png", self.button_size_play)
-        self.button_green_hover = self._load_button_image("BlueStandartStart.png", self.button_size_play) or self.button_green_normal
-        
-        # 2. Nút EXIT (Red) - Sử dụng tên file mới (ví dụ: quit_normal.png)
-        # Tải ảnh cho nút EXIT/QUIT
+        self.button_green_hover = self._load_button_image("BlueStandartStart.png", self.button_size_play)
         self.button_quit_normal = self._load_button_image("RedStandartQuit.png", self.button_size_exit)
-        self.button_quit_hover = self._load_button_image("BlueStandartQuit.png", self.button_size_exit) or self.button_quit_normal
-
-        # --- Logic Fallback ---
-        if self.button_green_normal == None:
-             self.button_green_normal = pygame.Surface(self.button_size_play, pygame.SRCALPHA); self.button_green_normal.fill(self.COLOR_GREEN_BTN)
-        if self.button_green_hover == None:
-             self.button_green_hover = self.button_green_normal
-        
-        if self.button_quit_normal == None: # Fallback cho nút EXIT
-             self.button_quit_normal = pygame.Surface(self.button_size_exit, pygame.SRCALPHA); self.button_quit_normal.fill(self.COLOR_RED_BTN)
-        if self.button_quit_hover == None:
-             self.button_quit_hover = self.button_quit_normal
-        # ----------------------------------------------
+        self.button_quit_hover = self._load_button_image("BlueStandartQuit.png", self.button_size_exit)
 
     def _load_button_image(self, filename, size):
-        """Hàm trợ giúp để tải và scale hình ảnh nút."""
         path = f"game/assets/images/{filename}"
         if os.path.exists(path):
             img = pygame.image.load(path).convert_alpha()
             return pygame.transform.scale(img, size)
-        else:
-            print(f"Cảnh báo: Không tìm thấy hình ảnh nút {filename}.")
-            return None
+        return None
 
-    def _setup_buttons(self):
-        """Khởi tạo vị trí các nút PLAY, EXIT và 4 nút Độ Khó (Tối ưu hóa khoảng cách)."""
-        center_x = self.width // 2
-        
-        # Bắt đầu cao hơn (self.height // 10)
-        start_y = self.height // 10 
-        
-        # --- Kích thước LỚN cho START và EXIT ---
-        LARGE_BUTTON_WIDTH = 200
-        LARGE_BUTTON_HEIGHT = 150
-        
-        # --- Kích thước CHUNG cho DIFFICULTY ---
-        NORMAL_BUTTON_HEIGHT = 60
-        NORMAL_BUTTON_WIDTH = 420
-        
-        spacing = 5 # Khoảng cách giữa các nút Độ Khó (giữ 5px)
-        
-        buttons = {}
-        
-        # 1. Nút PLAY (START)
-        buttons["PLAY"] = pygame.Rect(
-            center_x - (LARGE_BUTTON_WIDTH // 2), 
-            start_y, 
-            LARGE_BUTTON_WIDTH, 
-            LARGE_BUTTON_HEIGHT
-        )
-        
-        # 2. Nút EXIT
-        # FIX QUAN TRỌNG: Khoảng cách giữa START và EXIT
-        EXIT_SPACING = 0 # <--- Đặt khoảng cách về 0px (Sát nhau nhất)
-        
-        # Vị trí Y mới: start_y + (Chiều cao PLAY) + 0
-        exit_y = start_y + LARGE_BUTTON_HEIGHT + EXIT_SPACING
-        buttons["EXIT"] = pygame.Rect(
-            center_x - (LARGE_BUTTON_WIDTH // 2), 
-            exit_y, 
-            LARGE_BUTTON_WIDTH, 
-            LARGE_BUTTON_HEIGHT
-        )
-        
-        # 3. Nút Chọn độ khó
-        # Bắt đầu sau nút EXIT + spacing (Sử dụng spacing 5px)
-        diff_start_y = exit_y + LARGE_BUTTON_HEIGHT + spacing 
-        
-        for i, level in enumerate(config.DIFFICULTY_LEVELS):
-            buttons[level] = pygame.Rect(
-                center_x - (NORMAL_BUTTON_WIDTH // 2), 
-                diff_start_y + i * (NORMAL_BUTTON_HEIGHT + spacing), 
-                NORMAL_BUTTON_WIDTH, 
-                NORMAL_BUTTON_HEIGHT
-            )
-        return buttons
-    
     def handle_input(self, event):
-        """Xử lý sự kiện click chuột trên Menu."""
-        if event.type == pygame.MOUSEBUTTONDOWN:
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             mouse_pos = event.pos
             
             if self.buttons["PLAY"].collidepoint(mouse_pos):
-                return "PLAY", self.current_difficulty
+                # <<< TRẢ VỀ CẢ THUẬT TOÁN ĐÃ CHỌN >>>
+                return "PLAY", self.current_difficulty, self.current_algorithm
             
-            elif self.buttons["EXIT"].collidepoint(mouse_pos):
-                return "QUIT", None
+            if self.buttons["EXIT"].collidepoint(mouse_pos):
+                return "QUIT", None, None
             
             for level in config.DIFFICULTY_LEVELS:
                 if self.buttons[level].collidepoint(mouse_pos):
                     self.current_difficulty = level
-                    return "DIFFICULTY_SELECTED", level
-                
-        return None, None
+                    return "DIFFICULTY_SELECTED", level, None
+            
+            # <<< XỬ LÝ CLICK CHỌN THUẬT TOÁN >>>
+            for algo, rect in self.algo_buttons.items():
+                if rect.collidepoint(mouse_pos):
+                    self.current_algorithm = algo
+                    return "ALGO_SELECTED", None, algo
+                    
+        return None, None, None
 
     def draw(self):
-        """Vẽ toàn bộ Menu lên màn hình, sử dụng ảnh cho PLAY/EXIT và vẽ hình cho Difficulty."""
-        
-        # ... (Vẽ Background và Overlay giữ nguyên) ...
+        # Vẽ Background
         if self.background_menu:
-            self.bg_x -= self.scroll_speed
-            if self.bg_x < -self.bg_width:
-                self.bg_x = 0
-            self.screen.blit(self.background_menu, (self.bg_x, 0))
-            self.screen.blit(self.background_menu, (self.bg_x + self.bg_width, 0))
+            self.screen.blit(self.background_menu, (0, 0))
         else:
-            self.screen.fill(self.COLOR_BLACK) 
+            self.screen.fill((0, 0, 0))
         
         overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 100)) 
-        self.screen.blit(overlay, (0, 0))
+        overlay.fill((0, 0, 0, 100)); self.screen.blit(overlay, (0, 0))
         
         mouse_pos = pygame.mouse.get_pos()
+        center_x = self.width // 2
 
-        # --- 3. Vẽ Tiêu đề Game ---
-        title_text = self.font_large.render("MAZE ESCAPE", True, self.COLOR_RED_TEXT) 
-        title_rect = title_text.get_rect(center=(self.width // 2, self.height // 8))
-        self.screen.blit(title_text, title_rect)
+        # Vẽ Tiêu đề
+        title_text = self.font_large.render("MAZE ESCAPE", True, (255, 100, 100))
+        self.screen.blit(title_text, title_text.get_rect(center=(center_x, self.height * 0.1)))
 
-        # ----------------------------------------------------
-        # --- 4. VẼ NÚT START (DÙNG ẢNH PIXEL ART) ---
-        # ----------------------------------------------------
-        
-        # Nút PLAY
-        button_image = self.button_green_hover if self.buttons["PLAY"].collidepoint(mouse_pos) else self.button_green_normal
-        self.screen.blit(button_image, self.buttons["PLAY"])
-        
-        # ----------------------------------------------------
-        # --- 5. VẼ NÚT EXIT (DÙNG ẢNH PIXEL ART) ---
-        # ----------------------------------------------------
-        rect_exit = self.buttons["EXIT"]
-        
-        # Sử dụng ảnh nút QUIT/EXIT
-        button_image_exit = self.button_quit_hover if rect_exit.collidepoint(mouse_pos) else self.button_quit_normal
-        self.screen.blit(button_image_exit, rect_exit)
-        
-        # ----------------------------------------------------
-        # --- 6. Vẽ Khung Chọn Độ Khó (QUAY LẠI CODE CŨ: HÌNH HỌC) ---
-        # ----------------------------------------------------
-        
-       
-        label_y = self.buttons[config.DIFFICULTY_LEVELS[0]].top - 30 
-        
+        # Nút PLAY và EXIT
+        play_rect = pygame.Rect(center_x - 100, self.height * 0.2, 200, 150)
+        self.buttons["PLAY"] = play_rect
+        img_play = self.button_green_hover if play_rect.collidepoint(mouse_pos) else self.button_green_normal
+        if img_play: self.screen.blit(img_play, play_rect)
 
-        for level in config.DIFFICULTY_LEVELS:
-            rect = self.buttons[level]
-            settings = config.DIFFICULTY_SETTINGS[level]
-            
-            # Màu nền: Xanh lá (được chọn) hoặc Xám (mặc định)
-            if rect.collidepoint(mouse_pos):
-                color = (70, 70, 70) # Xám sáng khi hover
-            elif level == self.current_difficulty:
-                color = self.COLOR_GREEN_BTN # Xanh khi được chọn
-            else:
-                color = (50, 50, 50) # Xám mặc định
-                
-            pygame.draw.rect(self.screen, color, rect, border_radius=10) 
-            
-            # Vẽ viền màu vàng cho mức độ đang được chọn
-            if level == self.current_difficulty:
-                pygame.draw.rect(self.screen, (255, 255, 0), rect, width=3, border_radius=10)
+        exit_rect = pygame.Rect(center_x - 100, self.height * 0.2 + 155, 200, 150)
+        self.buttons["EXIT"] = exit_rect
+        img_exit = self.button_quit_hover if exit_rect.collidepoint(mouse_pos) else self.button_quit_normal
+        if img_exit: self.screen.blit(img_exit, exit_rect)
 
-            # Vẽ chữ (DISPLAY_NAME)
-            text = self.font_button.render(settings["DISPLAY_NAME"], True, self.COLOR_WHITE)
-            self.screen.blit(text, text.get_rect(center=rect.center))
+        # Cột bên trái: Chọn độ khó
+        diff_col_x = self.width * 0.25
+        diff_title = self.font_button.render("Difficulty", True, (255, 255, 100))
+        self.screen.blit(diff_title, diff_title.get_rect(center=(diff_col_x, self.height * 0.6)))
+        
+        start_y_diff = self.height * 0.6 + 50
+        for i, level in enumerate(config.DIFFICULTY_LEVELS):
+            rect = pygame.Rect(diff_col_x - 150, start_y_diff + i * 60, 300, 50)
+            is_selected = self.current_difficulty == level
+            color = (50, 200, 50) if is_selected else (80, 80, 80)
+            if rect.collidepoint(mouse_pos): color = (120, 120, 120)
+            pygame.draw.rect(self.screen, color, rect, border_radius=5)
+            if is_selected: pygame.draw.rect(self.screen, (255,255,0), rect, 3, 5)
+            text_surf = self.font_medium.render(config.DIFFICULTY_SETTINGS[level]["DISPLAY_NAME"], True, (255,255,255))
+            self.screen.blit(text_surf, text_surf.get_rect(center=rect.center))
+            self.buttons[level] = rect
+
+        # <<< Cột bên phải: Chọn thuật toán >>>
+        algo_col_x = self.width * 0.75
+        algo_title = self.font_button.render("Player Algorithm", True, (255, 255, 100))
+        self.screen.blit(algo_title, algo_title.get_rect(center=(algo_col_x, self.height * 0.6)))
+        
+        start_y_algo = self.height * 0.6 + 50
+        for i, algo in enumerate(self.algorithms):
+            rect = pygame.Rect(algo_col_x - 150, start_y_algo + i * 55, 300, 50)
+            is_selected = self.current_algorithm == algo
+            color = (100, 100, 180) if is_selected else (80, 80, 80)
+            if rect.collidepoint(mouse_pos): color = (120, 120, 120)
+            pygame.draw.rect(self.screen, color, rect, border_radius=5)
+            if is_selected: pygame.draw.rect(self.screen, (255,255,0), rect, 3, 5)
+            text_surf = self.font_algo.render(algo, True, (255,255,255))
+            self.screen.blit(text_surf, text_surf.get_rect(center=rect.center))
+            self.algo_buttons[algo] = rect
