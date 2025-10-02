@@ -5,11 +5,11 @@ MAZE_ROWS = 11
 CELL_SIZE = 32
 FPS = 60
 
+# <<< THÊM DANH SÁCH CÁC THEME MAP Ở ĐÂY >>>
+# Tên phải khớp với tên file ảnh (ví dụ: wooden.png, bg_wooden.png)
+MAP_THEMES = ["wooden", "wall", "ice", "tree_wooden"]
+
 # --- CẤU HÌNH ĐỊA HÌNH VÀ CHI PHÍ DI CHUYỂN ---
-# 0: Đường đi bình thường (cost 1)
-# 1: Tường (không thể đi qua)
-# 2: Bùn (đi chậm, cost 5)
-# 3: Nước (đi rất chậm, cost 10)
 TERRAIN_COSTS = {
     0: 1,
     2: 5,
@@ -40,8 +40,8 @@ DIFFICULTY_SETTINGS = {
         "DETECT_RADIUS": 5
     },
     "EXPERT": {
-        "DISPLAY_NAME": "EXPERT (2 Guards, Max Speed)",
-        "GUARD_COUNT": 2,
+        "DISPLAY_NAME": "EXPERT (4 Guards, Max Speed)",
+        "GUARD_COUNT": 4,
         "ALGORITHM_MODE": "A_STAR", 
         "CHASE_SPEED": 4,
         "DETECT_RADIUS": 6
