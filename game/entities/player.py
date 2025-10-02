@@ -1,9 +1,9 @@
-# game/entities/player.py
-# (Nội dung file này bạn đã gửi là chính xác, không cần thay đổi gì thêm)
 import pygame
 import math
 from game import config
-from game.ai.pathfinding import PATHFINDING_ALGORITHMS
+# <<< THAY ĐỔI 1: Import thêm thư viện time và PATHFINDING_ALGORITHMS >>>
+import time
+from game.ai.pathfinding import PATHFINDING_ALGORITHMS, find_path
 
 EVASION_RADIUS = 7
 
@@ -38,6 +38,9 @@ class Player:
         self.algorithm_name = algorithm_name
         self.pathfinding_algorithm = PATHFINDING_ALGORITHMS[algorithm_name]
 
+        # <<< THAY ĐỔI 2: Thêm thuộc tính để lưu stats >>>
+        self.pathfinding_stats = None
+
     def move(self, dx, dy, direction):
         new_x, new_y = self.x + dx, self.y + dy
         if 0 <= new_y < len(self.tiles) and 0 <= new_x < len(self.tiles[0]) and self.tiles[new_y][new_x] == 0:
@@ -70,7 +73,7 @@ class Player:
             for x in range(max(0, current_tile[0] - scan_radius), min(len(self.tiles[0]), current_tile[0] + scan_radius)):
                 if self.tiles[y][x] != 0: continue
                 spot = (x, y)
-                dist_to_g = min([abs(spot[0] - g.tile_x) + abs(spot[1] - g.tile_y) for g in guards])
+                dist_to_g = min([abs(spot[0] - g.tile_x) + abs(spot[1] - g.tile_y) for g in guards]) if guards else float('inf')
                 dist_from_p = abs(spot[0] - current_tile[0]) + abs(spot[1] - current_tile[1])
                 score = 1.5 * dist_to_g - dist_from_p
                 if score > max_score: max_score, best_spot = score, spot
@@ -102,20 +105,38 @@ class Player:
         if is_path_empty or is_current_path_unsafe:
             self.ai_path_index = 0
             use_guards = guards if self.algorithm_name == "A* (An toàn)" else None
-            new_path = self.pathfinding_algorithm(tiles, current_tile, ai_goal, guards=use_guards)
+            
+            # <<< THAY ĐỔI 3: Cập nhật cách gọi và xử lý kết quả >>>
+            # Bọc lệnh gọi thuật toán trong hàm find_path để đo thời gian
+            new_path, stats = find_path(
+                tiles, 
+                current_tile, 
+                ai_goal, 
+                self.pathfinding_algorithm, 
+                guards=use_guards
+            )
+            
+            # Lưu lại stats
+            if stats:
+                stats["name"] = self.algorithm_name
+                self.pathfinding_stats = stats
+            
             if new_path and len(new_path) > 1:
-                self.ai_path = new_path; self.ai_path_index = 1
+                self.ai_path = new_path
+                self.ai_path_index = 1
             else:
-                self.is_moving, self.ai_path = False, []; return
+                self.is_moving, self.ai_path = False, []
+                return
 
         if self.ai_path and self.ai_path_index < len(self.ai_path):
             next_tile = self.ai_path[self.ai_path_index]
             dx, dy = next_tile[0] - current_tile[0], next_tile[1] - current_tile[1]
             direction = "up" if dy < 0 else "down" if dy > 0 else "left" if dx < 0 else "right"
             if self.move(dx, dy, direction):
-                self.ai_path_index += 1; self.last_move_time = now
-        else:
-            self.is_moving = False
+                self.ai_path_index += 1
+                self.last_move_time = now
+            else:
+                self.is_moving = False
 
     def handle_input(self):
         if self.ai_mode: return
