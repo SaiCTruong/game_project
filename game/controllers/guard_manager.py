@@ -52,6 +52,8 @@ class GuardManager:
             if (abs(tile[0] - player_start_pos[0]) + abs(tile[1] - player_start_pos[1])) >= MIN_SPAWN_DISTANCE
         ]
         
+        mid_column = len(self.tiles[0]) // 2
+        safe_spawn_locations = [tile for tile in safe_spawn_locations if tile[0] >= mid_column]
         # 4. Xác định số lượng guard cần spawn
         spawn_count = self.guard_count
 

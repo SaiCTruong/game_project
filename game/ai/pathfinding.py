@@ -1,7 +1,6 @@
-# game/ai/pathfinding.py
 import heapq
 from collections import deque
-import time # <<< Import thư viện time
+import time
 
 # --- HÀM HEURISTIC (Dùng chung) ---
 def manhattan_distance(a, b):
@@ -15,39 +14,35 @@ def reconstruct_path(came_from, current):
         current = came_from.get(current)
     return path[::-1]
 
-# <<< THÊM HÀM WRAPPER NÀY ĐỂ ĐO THỜI GIAN VÀ STATS >>>
+# --- HÀM WRAPPER ĐỂ ĐO THỜI GIAN VÀ STATS ---
 def find_path(tiles, start, goal, algorithm_func, guards=None):
     """
     Hàm này gọi một thuật toán tìm đường cụ thể, đo thời gian và trả về kết quả cùng với các thông số.
     """
     start_time = time.time()
     
-    # Gọi hàm thuật toán thực tế (ví dụ: astar_path, bfs_path,...)
-    # và nhận lại path cùng số node đã duyệt
+    # Hàm thuật toán giờ sẽ trả về path, nodes_expanded, và nodes_generated
     result = algorithm_func(tiles, start, goal, guards=guards)
     
     end_time = time.time()
 
-    # Xử lý kết quả trả về
     if result:
-        path, nodes_expanded = result
-    else: # Trường hợp không tìm thấy đường đi
-        path, nodes_expanded = None, 0
+        path, nodes_expanded, nodes_generated = result
+    else:
+        path, nodes_expanded, nodes_generated = None, 0, 0
 
     time_taken = end_time - start_time
-    path_length = len(path) if path else 0
     
-    # Tạo từ điển chứa các thông số
     stats = {
         "time": time_taken,
-        "path_length": path_length,
+        "path_length": len(path) if path else 0,
         "nodes_expanded": nodes_expanded,
+        "nodes_generated": nodes_generated,
     }
     
     return path, stats
 
-
-# --- CÁC THUẬT TOÁN TÌM ĐƯỜNG (Giữ nguyên như phiên bản trước) ---
+# --- CÁC THUẬT TOÁN TÌM ĐƯỜNG (ĐÃ CẬP NHẬT ĐẦY ĐỦ) ---
 
 def astar_path(tiles, start, goal, guards=None):
     rows, cols = len(tiles), len(tiles[0])
@@ -55,13 +50,14 @@ def astar_path(tiles, start, goal, guards=None):
     g_score = {start: 0}
     came_from = {start: None}
     nodes_expanded = 0
+    nodes_generated = 1
 
     while open_set:
         f, current = heapq.heappop(open_set)
         nodes_expanded += 1
 
         if current == goal:
-            return reconstruct_path(came_from, current), nodes_expanded
+            return reconstruct_path(came_from, current), nodes_expanded, nodes_generated
 
         x, y = current
         for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
@@ -78,13 +74,14 @@ def astar_path(tiles, start, goal, guards=None):
                     elif dist <= 2: avoid_cost += 5000
             
             tentative_g_score = g_score.get(current, float('inf')) + 1 + avoid_cost
-            if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
+            if tentative_g_score < g_score.get(neighbor, float('inf')):
                 g_score[neighbor] = tentative_g_score
                 came_from[neighbor] = current
                 f_score = tentative_g_score + manhattan_distance(neighbor, goal)
                 heapq.heappush(open_set, (f_score, neighbor))
+                nodes_generated += 1
                 
-    return None, nodes_expanded
+    return None, nodes_expanded, nodes_generated
 
 def dijkstra_path(tiles, start, goal, guards=None):
     rows, cols = len(tiles), len(tiles[0])
@@ -92,13 +89,14 @@ def dijkstra_path(tiles, start, goal, guards=None):
     g_score = {start: 0}
     came_from = {start: None}
     nodes_expanded = 0
+    nodes_generated = 1
 
     while open_set:
         cost, current = heapq.heappop(open_set)
         nodes_expanded += 1
 
         if current == goal:
-            return reconstruct_path(came_from, current), nodes_expanded
+            return reconstruct_path(came_from, current), nodes_expanded, nodes_generated
 
         x, y = current
         for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
@@ -108,30 +106,32 @@ def dijkstra_path(tiles, start, goal, guards=None):
                 continue
 
             new_cost = g_score.get(current, float('inf')) + 1
-            if neighbor not in g_score or new_cost < g_score[neighbor]:
+            if new_cost < g_score.get(neighbor, float('inf')):
                 g_score[neighbor] = new_cost
                 came_from[neighbor] = current
                 heapq.heappush(open_set, (new_cost, neighbor))
+                nodes_generated += 1
                 
-    return None, nodes_expanded
+    return None, nodes_expanded, nodes_generated
 
 def greedy_bfs_path(tiles, start, goal, guards=None):
     rows, cols = len(tiles), len(tiles[0])
-    open_set = [(0, start)]
+    open_set = [(manhattan_distance(start, goal), start)]
     came_from = {start: None}
     visited = {start}
     nodes_expanded = 0
+    nodes_generated = 1
 
     while open_set:
         _, current = heapq.heappop(open_set)
         nodes_expanded += 1
         
         if current == goal:
-            return reconstruct_path(came_from, current), nodes_expanded
+            return reconstruct_path(came_from, current), nodes_expanded, nodes_generated
 
         x, y = current
-        neighbors = sorted([(x+dx, y+dy) for dx, dy in [(0,1), (0,-1), (1,0), (-1,0)]], 
-                           key=lambda n: manhattan_distance(n, goal))
+        # Sắp xếp neighbor không cần thiết nếu dùng priority queue, nhưng giữ lại để logic không đổi
+        neighbors = [(x+dx, y+dy) for dx, dy in [(0,1), (0,-1), (1,0), (-1,0)]]
 
         for neighbor in neighbors:
             nx, ny = neighbor
@@ -142,8 +142,9 @@ def greedy_bfs_path(tiles, start, goal, guards=None):
                 came_from[neighbor] = current
                 priority = manhattan_distance(neighbor, goal)
                 heapq.heappush(open_set, (priority, neighbor))
+                nodes_generated += 1
                 
-    return None, nodes_expanded
+    return None, nodes_expanded, nodes_generated
 
 def bfs_path(tiles, start, goal, guards=None):
     rows, cols = len(tiles), len(tiles[0])
@@ -151,13 +152,14 @@ def bfs_path(tiles, start, goal, guards=None):
     visited = {start}
     came_from = {start: None}
     nodes_expanded = 0
+    nodes_generated = 1
 
     while queue:
         current = queue.popleft()
         nodes_expanded += 1
         
         if current == goal:
-            return reconstruct_path(came_from, current), nodes_expanded
+            return reconstruct_path(came_from, current), nodes_expanded, nodes_generated
 
         x, y = current
         for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
@@ -169,8 +171,9 @@ def bfs_path(tiles, start, goal, guards=None):
                 visited.add(neighbor)
                 came_from[neighbor] = current
                 queue.append(neighbor)
+                nodes_generated += 1
                 
-    return None, nodes_expanded
+    return None, nodes_expanded, nodes_generated
 
 def dfs_path(tiles, start, goal, guards=None):
     rows, cols = len(tiles), len(tiles[0])
@@ -178,13 +181,14 @@ def dfs_path(tiles, start, goal, guards=None):
     visited = {start}
     came_from = {start: None}
     nodes_expanded = 0
+    nodes_generated = 1
 
     while stack:
         current = stack.pop()
         nodes_expanded += 1
 
         if current == goal:
-            return reconstruct_path(came_from, current), nodes_expanded
+            return reconstruct_path(came_from, current), nodes_expanded, nodes_generated
 
         x, y = current
         for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
@@ -196,8 +200,9 @@ def dfs_path(tiles, start, goal, guards=None):
                 visited.add(neighbor)
                 came_from[neighbor] = current
                 stack.append(neighbor)
+                nodes_generated += 1
                 
-    return None, nodes_expanded
+    return None, nodes_expanded, nodes_generated
 
 # --- DICTIONARY TRUY CẬP CÁC THUẬT TOÁN ---
 PATHFINDING_ALGORITHMS = {

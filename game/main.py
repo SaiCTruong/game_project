@@ -244,46 +244,60 @@ def draw_stats_button(screen):
 
 def draw_stats_panel(screen, stats_history):
     """Vẽ bảng so sánh thông tin của các thuật toán đã chạy."""
-    panel_w, panel_h = 750, 400
+    panel_w, panel_h = 850, 400  # <<< Tăng chiều rộng bảng
     panel_rect = pygame.Rect((screen.get_width() - panel_w) / 2, (screen.get_height() - panel_h) / 2, panel_w, panel_h)
-    
+
     overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 180))
     screen.blit(overlay, (0, 0))
     
     pygame.draw.rect(screen, (30, 30, 30), panel_rect, border_radius=10)
     pygame.draw.rect(screen, (200, 200, 200), panel_rect, 4, 10)
-    
+
     font_title = pygame.font.SysFont('Arial', 32, bold=True)
     font_header = pygame.font.SysFont('Arial', 22, bold=True)
     font_row = pygame.font.SysFont('Arial', 20)
-    
+
     title_text = font_title.render("Algorithm Comparison", True, (255, 255, 0))
     screen.blit(title_text, title_text.get_rect(centerx=panel_rect.centerx, y=panel_rect.top + 20))
+
+    # <<< THAY ĐỔI 1: Cập nhật header và vị trí các cột >>>
+    headers = ["Algorithm", "Steps", "Time (ms)", "Generated", "Expanded"]
+    col_positions = [
+        panel_rect.left + 30,   # Algorithm
+        panel_rect.left + 320,  # Steps
+        panel_rect.left + 430,  # Time
+        panel_rect.left + 590,  # Generated
+        panel_rect.left + 720   # Expanded
+    ]
     
-    headers = ["Algorithm", "Time (ms)", "Path", "Nodes"]
-    col_positions = [panel_rect.left + 30, panel_rect.left + 320, panel_rect.left + 480, panel_rect.left + 610]
+    # Vẽ header
     header_y = panel_rect.top + 80
-    
     for i, header in enumerate(headers):
         header_surf = font_header.render(header, True, (255, 255, 255))
         screen.blit(header_surf, (col_positions[i], header_y))
         
     pygame.draw.line(screen, (150, 150, 150), (panel_rect.left + 20, header_y + 30), (panel_rect.right - 20, header_y + 30), 2)
-    
+
+    # Vẽ các dòng dữ liệu
     row_y_start = header_y + 50
     for i, stats in enumerate(stats_history):
         row_y = row_y_start + i * 35
+        
+        # <<< THAY ĐỔI 2: Lấy dữ liệu mới và sắp xếp lại >>>
         data = [
-            str(stats.get('name', 'N/A')), 
-            f"{stats.get('time', 0) * 1000:.2f}", 
-            str(stats.get('path_length', 0)), 
+            str(stats.get('name', 'N/A')),
+            str(stats.get('path_length', 0)),
+            f"{stats.get('time', 0) * 1000:.2f}",
+            str(stats.get('nodes_generated', 'N/A')),
             str(stats.get('nodes_expanded', 'N/A'))
         ]
+        
         for j, item in enumerate(data):
             item_surf = font_row.render(item, True, (210, 210, 210))
             screen.blit(item_surf, (col_positions[j], row_y))
             
+    # Nút đóng 'X' (giữ nguyên)
     close_btn_size = 30
     close_btn_rect = pygame.Rect(panel_rect.right - close_btn_size - 10, panel_rect.top + 10, close_btn_size, close_btn_size)
     pygame.draw.rect(screen, (200, 50, 50), close_btn_rect, border_radius=5)
