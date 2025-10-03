@@ -44,6 +44,7 @@ def find_path(tiles, start, goal, algorithm_func, guards=None):
 
 # --- CÁC THUẬT TOÁN TÌM ĐƯỜNG (ĐÃ CẬP NHẬT ĐẦY ĐỦ) ---
 
+
 def astar_path(tiles, start, goal, guards=None):
     rows, cols = len(tiles), len(tiles[0])
     open_set = [(0, start)]
@@ -66,14 +67,9 @@ def astar_path(tiles, start, goal, guards=None):
             if not (0 <= ny < rows and 0 <= nx < cols and tiles[ny][nx] == 0):
                 continue
             
-            avoid_cost = 0
-            if guards:
-                for guard in guards:
-                    dist = abs(nx - guard.tile_x) + abs(ny - guard.tile_y)
-                    if dist <= 1: avoid_cost += 50000
-                    elif dist <= 2: avoid_cost += 5000
+            # <<< XÓA BỎ KHỐI LOGIC `avoid_cost` Ở ĐÂY >>>
             
-            tentative_g_score = g_score.get(current, float('inf')) + 1 + avoid_cost
+            tentative_g_score = g_score.get(current, float('inf')) + 1
             if tentative_g_score < g_score.get(neighbor, float('inf')):
                 g_score[neighbor] = tentative_g_score
                 came_from[neighbor] = current

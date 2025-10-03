@@ -89,64 +89,81 @@ class Player:
                 if score > max_score: max_score, best_spot = score, spot
         return best_spot if best_spot else current_tile
 
+    def is_tile_dangerous(self, tile, guards):
+        """Kiểm tra xem một ô có nguy hiểm không (lính gác ở trên hoặc ngay cạnh)."""
+        if not guards:
+            return False
+        for guard in guards:
+            dist = abs(tile[0] - guard.tile_x) + abs(tile[1] - guard.tile_y)
+            if dist <= 1:
+                return True
+        return False
+
     def handle_ai_move(self, tiles, exit_tile, guards):
-        AI_MOVE_DELAY = 80; now = pygame.time.get_ticks()
-        if now - self.last_move_time < AI_MOVE_DELAY: return
+        """
+        Logic di chuyển mới cho AI:
+        1. Luôn tìm đường đi ngắn nhất đến lối ra.
+        2. Trước mỗi bước đi, kiểm tra xem ô tiếp theo có nguy hiểm không.
+        3. Nếu nguy hiểm, tạm thời tìm một điểm an toàn gần đó để né.
+        4. Nếu an toàn, tiếp tục đi theo lộ trình.
+        """
+        AI_MOVE_DELAY = 80
+        now = pygame.time.get_ticks()
+        if now - self.last_move_time < AI_MOVE_DELAY:
+            return
 
         current_tile = self.get_tile_position()
-        
-        nearest_guard_dist = float('inf')
-        if guards:
-            nearest_guard = min(guards, key=lambda g: abs(current_tile[0] - g.tile_x) + abs(current_tile[1] - g.tile_y))
-            nearest_guard_dist = abs(current_tile[0] - nearest_guard.tile_x) + abs(current_tile[1] - nearest_guard.tile_y)
-        
-        if nearest_guard_dist <= EVASION_RADIUS:
-            if not self.is_evading: self.ai_path = []
-            self.is_evading = True
-        elif nearest_guard_dist > EVASION_RADIUS + 2:
-            if self.is_evading: self.ai_path = []
-            self.is_evading = False
-        
-        ai_goal = self.find_best_evasion_spot(current_tile, guards) if self.is_evading else exit_tile
 
-        is_path_empty = not self.ai_path or self.ai_path_index >= len(self.ai_path)
-        is_current_path_unsafe = self.check_if_path_is_unsafe(guards)
-
-        if is_path_empty or is_current_path_unsafe:
-            self.ai_path_index = 0
-            use_guards = guards if self.algorithm_name == "A* (An toàn)" else None
-            
-            # <<< THAY ĐỔI 3: Cập nhật cách gọi và xử lý kết quả >>>
-            # Bọc lệnh gọi thuật toán trong hàm find_path để đo thời gian
-            new_path, stats = find_path(
-                tiles, 
-                current_tile, 
-                ai_goal, 
-                self.pathfinding_algorithm, 
-                guards=use_guards
-            )
-            
-            # Lưu lại stats
+        # 1. Quản lý đường đi chính (luôn hướng đến lối ra)
+        if not self.ai_path or self.ai_path_index >= len(self.ai_path):
+            # Tìm đường đi ngắn nhất đến lối ra, không cần né tránh ở bước này
+            path, stats = find_path(tiles, current_tile, exit_tile, self.pathfinding_algorithm)
             if stats:
                 stats["name"] = self.algorithm_name
                 self.pathfinding_stats = stats
             
-            if new_path and len(new_path) > 1:
-                self.ai_path = new_path
+            if path and len(path) > 1:
+                self.ai_path = path
                 self.ai_path_index = 1
             else:
-                self.is_moving, self.ai_path = False, []
+                self.is_moving = False
+                self.ai_path = []
                 return
 
-        if self.ai_path and self.ai_path_index < len(self.ai_path):
-            next_tile = self.ai_path[self.ai_path_index]
-            dx, dy = next_tile[0] - current_tile[0], next_tile[1] - current_tile[1]
+        # 2. Phán đoán và phản ứng
+        next_tile_in_path = self.ai_path[self.ai_path_index]
+        
+        # Kiểm tra xem bước tiếp theo có nguy hiểm không
+        if self.is_tile_dangerous(next_tile_in_path, guards):
+            # Nếu nguy hiểm, hủy đường đi hiện tại và tìm điểm né tốt nhất
+            evasion_goal = self.find_best_evasion_spot(current_tile, guards)
+            
+            # Tìm đường đi NGẮN HẠN đến điểm né
+            evasion_path, _ = find_path(tiles, current_tile, evasion_goal, self.pathfinding_algorithm)
+            
+            if evasion_path and len(evasion_path) > 1:
+                # Nếu có đường né, thực hiện bước đi đầu tiên của đường né
+                next_move = evasion_path[1]
+                self.ai_path = [] # Xóa đường đi chính để buộc tính toán lại ở bước sau
+            else:
+                # Nếu không tìm được đường né, đứng yên chờ đợi
+                self.is_moving = False
+                return
+        else:
+            # Nếu an toàn, đi theo lộ trình đã vạch ra
+            next_move = next_tile_in_path
+            self.ai_path_index += 1
+
+        # 3. Thực hiện di chuyển
+        dx = next_move[0] - current_tile[0]
+        dy = next_move[1] - current_tile[1]
+        
+        if dx != 0 or dy != 0:
             direction = "up" if dy < 0 else "down" if dy > 0 else "left" if dx < 0 else "right"
             if self.move(dx, dy, direction):
-                self.ai_path_index += 1
                 self.last_move_time = now
-            else:
-                self.is_moving = False
+        else:
+            self.is_moving = False
 
     def handle_input(self):
         if self.ai_mode: return
