@@ -203,7 +203,7 @@ def dfs_path(tiles, start, goal, guards=None):
 # --- DICTIONARY TRUY CẬP CÁC THUẬT TOÁN ---
 PATHFINDING_ALGORITHMS = {
     "A* (An toàn)": astar_path,
-    "Dijkstra (UCS)": dijkstra_path,
+    "Uniform Cost Search (UCS)": dijkstra_path,
     "Greedy Best-First": greedy_bfs_path,
     "Breadth-First (BFS)": bfs_path,
     "Depth-First (DFS)": dfs_path,
