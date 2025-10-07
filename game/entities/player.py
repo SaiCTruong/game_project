@@ -6,7 +6,6 @@ from game.ai.pathfinding import PATHFINDING_ALGORITHMS, find_path
 
 class Player:
     def __init__(self, start_x, start_y, tiles, algorithm_name="A* (An toàn)"):
-        # --- (Các thuộc tính cũ giữ nguyên) ---
         self.tiles = tiles
         self.x, self.y = start_x, start_y
         self.size = config.CELL_SIZE
@@ -37,7 +36,7 @@ class Player:
         self.pathfinding_stats = None
         self.footprints = []
 
-        # <<< THAY ĐỔI 1: Thêm các biến cho logic né tránh mới >>>
+        # Các biến cho logic né tránh
         self.is_evading = False
         self.evasion_path = []
         self.evasion_path_index = 0
@@ -60,18 +59,29 @@ class Player:
 
     def check_collision_with_guard(self, guard):
         player_rect = pygame.Rect(self.x * self.size, self.y * self.size, self.size, self.size)
-        guard_rect = pygame.Rect(guard.pixel_x, guard.pixel_y, guard.size, guard.size)
+        guard_rect = pygame.Rect(guard.tile_x * self.size, guard.tile_y * self.size, guard.size, guard.size)
         return player_rect.inflate(-self.size * 0.4, -self.size * 0.4).colliderect(
                guard_rect.inflate(-guard.size * 0.4, -guard.size * 0.4))
 
     def is_tile_dangerous(self, tile, guards):
-        """Kiểm tra xem một ô có nguy hiểm không (lính gác ở trên hoặc ngay cạnh)."""
         if not guards:
             return False
+
+        DANGER_RADIUS = 2 # Tăng bán kính nguy hiểm để AI cẩn thận hơn
+
         for guard in guards:
-            dist = abs(tile[0] - guard.tile_x) + abs(tile[1] - guard.tile_y)
-            if dist <= 1:
+            # 1. Kiểm tra với vị trí hiện tại của lính gác
+            dist_current = abs(tile[0] - guard.tile_x) + abs(tile[1] - guard.tile_y)
+            if dist_current <= DANGER_RADIUS:
                 return True
+
+            # 2. Dự đoán và kiểm tra với vị trí tiếp theo của lính gác
+            if guard.path and guard.path_index < len(guard.path):
+                predicted_pos = guard.path[guard.path_index]
+                dist_predicted = abs(tile[0] - predicted_pos[0]) + abs(tile[1] - predicted_pos[1])
+                if dist_predicted <= DANGER_RADIUS - 1: # Bán kính cho vị trí dự đoán có thể nhỏ hơn một chút
+                    return True
+                    
         return False
 
     def find_best_evasion_spot(self, current_tile, guards):
@@ -88,7 +98,6 @@ class Player:
                     max_score, best_spot = score, spot
         return best_spot if best_spot else current_tile
 
-    # <<< THAY ĐỔI 2: Viết lại hoàn toàn hàm handle_ai_move >>>
     def handle_ai_move(self, tiles, exit_tile, guards):
         AI_MOVE_DELAY = 80
         now = pygame.time.get_ticks()
@@ -97,74 +106,59 @@ class Player:
 
         current_tile = (self.x, self.y)
         next_move = None
-
-        # --- Logic né tránh (Ưu tiên cao nhất) ---
+        
+        # --- LOGIC NÉ TRÁNH CHIẾN THUẬT (Ưu tiên cao nhất) ---
         if self.is_evading:
             if self.evasion_path and self.evasion_path_index < len(self.evasion_path):
-                # Nếu đang trong quá trình né, tiếp tục đi theo đường né
                 next_move = self.evasion_path[self.evasion_path_index]
                 self.evasion_path_index += 1
-            else:
-                # Đã đến điểm né an toàn, thoát khỏi chế độ né tránh
-                self.is_evading = False
-                self.ai_path = [] # Xóa đường đi chính để buộc tính toán lại
+            else: # Đã né xong
+                self.is_evading, self.ai_path = False, []
                 self.is_moving = False
                 return
-        
-        # --- Logic tìm đường chính ---
+
+        # --- LOGIC TÌM ĐƯỜNG CHIẾN LƯỢC ---
         else:
-            if not self.ai_path or self.ai_path_index >= len(self.ai_path):
-                # Nếu không có đường đi chính, tìm một đường mới đến lối ra
-                path, stats = find_path(tiles, current_tile, exit_tile, self.pathfinding_algorithm)
+            recalculate_path = not self.ai_path or self.ai_path_index >= len(self.ai_path)
+            
+            # Tính toán lại đường đi nếu cần hoặc nếu có lính gác ở gần (để cập nhật đường đi an toàn)
+            is_guard_nearby = any(abs(current_tile[0] - g.tile_x) + abs(current_tile[1] - g.tile_y) < 7 for g in guards)
+            if recalculate_path or is_guard_nearby:
+                path, stats = find_path(tiles, current_tile, exit_tile, self.pathfinding_algorithm, guards)
                 if stats:
                     stats["name"] = self.algorithm_name
                     self.pathfinding_stats = stats
                 
                 if path and len(path) > 1:
-                    self.ai_path = path
-                    self.ai_path_index = 1
+                    self.ai_path, self.ai_path_index = path, 1
                 else:
                     self.is_moving = False
                     return
 
-            # Lấy bước đi tiếp theo trong đường đi chính
             next_tile_in_path = self.ai_path[self.ai_path_index]
 
+            # Nếu bước tiếp theo vẫn bị đe dọa trực tiếp -> Kích hoạt né tránh
             if self.is_tile_dangerous(next_tile_in_path, guards):
-                # Nếu nguy hiểm -> Bật chế độ né tránh
                 self.is_evading = True
                 evasion_goal = self.find_best_evasion_spot(current_tile, guards)
-                
-                # Tìm đường đi ngắn hạn đến điểm né
                 evasion_path, _ = find_path(tiles, current_tile, evasion_goal, self.pathfinding_algorithm)
-
                 if evasion_path and len(evasion_path) > 1:
-                    self.evasion_path = evasion_path
-                    self.evasion_path_index = 1 # Bắt đầu đi từ bước thứ 2 (bước 1 là vị trí hiện tại)
-                    next_move = self.evasion_path[self.evasion_path_index] 
-                    self.evasion_path_index += 1 # Chuẩn bị cho lượt đi tiếp theo
-                else:
-                    # Không tìm được đường né, đứng yên
-                    self.is_moving = False
-                    return
+                    self.evasion_path, self.evasion_path_index = evasion_path, 1
+                self.is_moving = False
+                return # Dừng lại, lượt sau sẽ bắt đầu né
             else:
-                # Nếu an toàn, tiếp tục đi theo đường đi chính
                 next_move = next_tile_in_path
                 self.ai_path_index += 1
 
-        # --- Thực hiện di chuyển ---
+        # --- THỰC HIỆN DI CHUYỂN ---
         if next_move:
-            dx = next_move[0] - current_tile[0]
-            dy = next_move[1] - current_tile[1]
-            
+            dx, dy = next_move[0] - current_tile[0], next_move[1] - current_tile[1]
             if dx != 0 or dy != 0:
                 direction = "up" if dy < 0 else "down" if dy > 0 else "left" if dx < 0 else "right"
                 if self.move(dx, dy, direction):
                     self.last_move_time = now
-            else:
-                self.is_moving = False
-        else:
-            self.is_moving = False
+            else: self.is_moving = False
+        else: self.is_moving = False
 
     def handle_input(self):
         if self.ai_mode: return

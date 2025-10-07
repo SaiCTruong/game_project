@@ -45,7 +45,10 @@ def find_path(tiles, start, goal, algorithm_func, guards=None):
 # --- CÁC THUẬT TOÁN TÌM ĐƯỜNG (ĐÃ CẬP NHẬT ĐẦY ĐỦ) ---
 
 
+# trong file game/ai/pathfinding.py
+
 def astar_path(tiles, start, goal, guards=None):
+    
     rows, cols = len(tiles), len(tiles[0])
     open_set = [(0, start)]
     g_score = {start: 0}
@@ -55,6 +58,11 @@ def astar_path(tiles, start, goal, guards=None):
 
     while open_set:
         f, current = heapq.heappop(open_set)
+        
+        # Bỏ qua nếu đã có đường đi tốt hơn
+        if g_score[current] < (f - manhattan_distance(current, goal)):
+            continue
+
         nodes_expanded += 1
 
         if current == goal:
@@ -67,9 +75,23 @@ def astar_path(tiles, start, goal, guards=None):
             if not (0 <= ny < rows and 0 <= nx < cols and tiles[ny][nx] == 0):
                 continue
             
-            # <<< XÓA BỎ KHỐI LOGIC `avoid_cost` Ở ĐÂY >>>
+            # <<< LOGIC TÌM ĐƯỜNG THÔNG MINH BẮT ĐẦU TỪ ĐÂY >>>
+            # 1. Chi phí di chuyển cơ bản là 1
+            movement_cost = 1
             
-            tentative_g_score = g_score.get(current, float('inf')) + 1
+            # 2. Tính toán "chi phí nguy hiểm"
+            danger_cost = 0
+            if guards:
+                for guard in guards:
+                    dist = manhattan_distance(neighbor, (guard.tile_x, guard.tile_y))
+                    if dist == 0: danger_cost += 1000 # Rất nguy hiểm: Đè lên lính gác
+                    elif dist == 1: danger_cost += 50   # Nguy hiểm: Ngay cạnh lính gác
+                    elif dist == 2: danger_cost += 20   # Cẩn trọng: Gần lính gác
+                    elif dist == 3: danger_cost += 5    # Hơi gần
+
+            # 3. Tổng chi phí để đi đến ô hàng xóm
+            tentative_g_score = g_score.get(current, float('inf')) + movement_cost + danger_cost
+            
             if tentative_g_score < g_score.get(neighbor, float('inf')):
                 g_score[neighbor] = tentative_g_score
                 came_from[neighbor] = current
@@ -200,6 +222,58 @@ def dfs_path(tiles, start, goal, guards=None):
                 
     return None, nodes_expanded, nodes_generated
 
+
+def hill_climbing_path(tiles, start, goal, guards=None):
+    """
+    Tìm đường đi bằng thuật toán Hill Climbing (tìm kiếm cục bộ).
+    Luôn di chuyển đến ô hàng xóm có heuristic (khoảng cách đến đích) tốt nhất.
+    Dễ bị kẹt ở 'local minima' (ngõ cụt).
+    """
+    rows, cols = len(tiles), len(tiles[0])
+    current = start
+    path = [current]
+    visited = {current}
+    
+    nodes_expanded = 0
+    nodes_generated = 1 # Bắt đầu với start node
+
+    # Giới hạn số bước để tránh vòng lặp vô tận
+    max_steps = rows * cols 
+    for _ in range(max_steps):
+        if current == goal:
+            return path, nodes_expanded, nodes_generated
+
+        nodes_expanded += 1
+        x, y = current
+        
+        # Tìm tất cả các hàng xóm hợp lệ và chưa đi qua
+        neighbors = []
+        for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+            neighbor = (x + dx, y + dy)
+            nx, ny = neighbor
+            if (0 <= ny < rows and 0 <= nx < cols and 
+                tiles[ny][nx] == 0 and neighbor not in visited):
+                neighbors.append(neighbor)
+                nodes_generated += 1
+
+        if not neighbors:
+            # Không còn đường đi -> bị kẹt
+            return None, nodes_expanded, nodes_generated
+
+        # Tìm hàng xóm tốt nhất (gần đích nhất)
+        best_neighbor = min(neighbors, key=lambda n: manhattan_distance(n, goal))
+
+        # Nếu bước đi tốt nhất còn tệ hơn vị trí hiện tại -> bị kẹt ở local minimum
+        if manhattan_distance(best_neighbor, goal) >= manhattan_distance(current, goal):
+            return None, nodes_expanded, nodes_generated
+        
+        # Di chuyển đến vị trí tốt nhất tiếp theo
+        current = best_neighbor
+        path.append(current)
+        visited.add(current)
+        
+    return None, nodes_expanded, nodes_generated # Hết số bước mà chưa tới đích
+
 # --- DICTIONARY TRUY CẬP CÁC THUẬT TOÁN ---
 PATHFINDING_ALGORITHMS = {
     "A* (An toàn)": astar_path,
@@ -207,4 +281,5 @@ PATHFINDING_ALGORITHMS = {
     "Greedy Best-First": greedy_bfs_path,
     "Breadth-First (BFS)": bfs_path,
     "Depth-First (DFS)": dfs_path,
+    "Hill Climbing": hill_climbing_path,
 }

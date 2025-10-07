@@ -125,5 +125,15 @@ def maze_to_tiles(grid, cols, rows, wide_prob=0.1):
                 if 0 <= nx < w and 0 <= ny < h:
                     tiles[ny][nx] = 0  # mở rộng thêm 1 ô bên cạnh
 
+    tiles[0][1] = 0
+    tiles[1][1] = 0
+    exit_x = cols * 2 - 2
+    exit_y = rows * 2 - 1
+    
+    if exit_y < h and exit_x < w:
+        tiles[exit_y][exit_x] = 0
+    if (exit_y + 1) < h and exit_x < w:
+        tiles[exit_y + 1][exit_x] = 0
+
     return tiles
 
