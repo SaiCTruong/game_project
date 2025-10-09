@@ -45,7 +45,7 @@ def astar_path(tiles, start, goal, algorithm_mode="A_STAR", guards=None):
                         gx, gy = guard.tile_x, guard.tile_y
                         dist = abs(nx - gx) + abs(ny - gy)
                         
-                        # <<< NÂNG CẤP 3: CHI PHÍ ĐỘNG >>>
+                   
                         # 1. Dự đoán vị trí tiếp theo của guard
                         guard_next_pos = None
                         if guard.path and guard.path_index < len(guard.path):
