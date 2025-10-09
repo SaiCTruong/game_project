@@ -322,11 +322,27 @@ def draw_replay_button(screen):
     text = font.render("Replay", True, (255, 255, 255))
     screen.blit(text, text.get_rect(center=REPLAY_BUTTON_RECT.center))
 
+
 def draw_replay_menu(screen):
-    """Vẽ bảng chọn thuật toán mới để chơi lại."""
-    panel_w, panel_h = 500, 400
+    
+    algorithms = list(PATHFINDING_ALGORITHMS.keys())
+    num_algos = len(algorithms)
+
+
+    top_padding = 80  # Khoảng trống cho tiêu đề
+    bottom_padding = 40 # Khoảng trống ở dưới
+    button_spacing = 55 # Khoảng cách giữa các nút
+    
+    panel_w = 500
+    # Tính chiều cao cần thiết: top + (số nút * khoảng cách) + bottom
+    panel_h = top_padding + (num_algos * button_spacing) + bottom_padding
+    
+    # Đảm bảo panel không cao hơn màn hình
+    panel_h = min(panel_h, screen.get_height() * 0.95)
+
     panel_rect = pygame.Rect((screen.get_width() - panel_w) / 2, (screen.get_height() - panel_h) / 2, panel_w, panel_h)
     
+    # Phần code vẽ còn lại giữ nguyên
     overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 220))
     screen.blit(overlay, (0, 0))
@@ -340,19 +356,21 @@ def draw_replay_menu(screen):
     title_text = font_title.render("Select New Algorithm", True, (255, 255, 0))
     screen.blit(title_text, title_text.get_rect(centerx=panel_rect.centerx, y=panel_rect.top + 20))
     
-    algorithms = list(PATHFINDING_ALGORITHMS.keys())
     button_rects = {}
     mouse_pos = pygame.mouse.get_pos()
     
     for i, algo_name in enumerate(algorithms):
-        btn_rect = pygame.Rect(panel_rect.left + 50, panel_rect.top + 80 + i * 55, panel_w - 100, 45)
-        is_hover = btn_rect.collidepoint(mouse_pos)
-        btn_color = (100, 100, 100) if is_hover else (70, 70, 70)
-        pygame.draw.rect(screen, btn_color, btn_rect, border_radius=8)
-        text_surf = font_button.render(algo_name, True, (255, 255, 255))
-        screen.blit(text_surf, text_surf.get_rect(center=btn_rect.center))
-        button_rects[algo_name] = btn_rect
+        btn_rect = pygame.Rect(panel_rect.left + 50, panel_rect.top + 80 + i * button_spacing, panel_w - 100, 45)
         
+        # Chỉ vẽ nút nếu nó nằm trong phạm vi panel (phòng trường hợp quá nhiều nút)
+        if panel_rect.contains(btn_rect):
+            is_hover = btn_rect.collidepoint(mouse_pos)
+            btn_color = (100, 100, 100) if is_hover else (70, 70, 70)
+            pygame.draw.rect(screen, btn_color, btn_rect, border_radius=8)
+            text_surf = font_button.render(algo_name, True, (255, 255, 255))
+            screen.blit(text_surf, text_surf.get_rect(center=btn_rect.center))
+            button_rects[algo_name] = btn_rect
+            
     return button_rects
 
 
@@ -391,7 +409,6 @@ def run_game_loop(screen):
     while running:
         clock.tick(config.FPS)
         
-        # --- XỬ LÝ SỰ KIỆN (INPUT) ---
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return "QUIT"
@@ -556,11 +573,11 @@ def main():
 
     while running:
         clock.tick(config.FPS)
-        
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            
+    
             if GAME_STATE == "MENU":
                 action, difficulty, algorithm, map_idx = menu.handle_input(event)
                 if action == "PLAY":
