@@ -1,6 +1,8 @@
 import os
 import sys
 import pygame
+import math
+from collections import deque
 from game import config
 from game.maze.generator import generate_maze, maze_to_tiles
 from game.render.renderer import render_maze
@@ -32,7 +34,9 @@ tiles = None
 current_map_index = 0
 current_maze_tiles = None
 replay_stats_history = []
-
+is_path_blocked = False
+path_warning_timer = 0
+reachable_tiles_from_player = set()
 # Biến cho các nút bấm và bảng thông tin
 STATS_BUTTON_RECT = None
 STATS_PANEL_VISIBLE = False
@@ -284,7 +288,7 @@ def draw_stats_panel(screen, stats_history):
     for i, stats in enumerate(stats_history):
         row_y = row_y_start + i * 35
         
-        # <<< THAY ĐỔI 2: Lấy dữ liệu mới và sắp xếp lại >>>
+      
         data = [
             str(stats.get('name', 'N/A')),
             str(stats.get('path_length', 0)),
@@ -385,6 +389,76 @@ def draw_footprints(screen, player, footprint_img):
         pos_y = pos[1] * config.CELL_SIZE + (config.CELL_SIZE - footprint_img.get_height()) / 2
         
         screen.blit(footprint_img, (pos_x, pos_y))
+
+# trong file main.py
+
+def update_path_validity():
+
+    global is_path_blocked, path_warning_timer, reachable_tiles_from_player
+    if not player or not tiles:
+        return
+
+    # Reset lại tập hợp
+    reachable_tiles_from_player.clear()
+    
+    # Sử dụng BFS để thực hiện flood-fill
+    queue = deque([player.get_tile_position()])
+    visited = {player.get_tile_position()}
+    
+    rows, cols = len(tiles), len(tiles[0])
+
+    while queue:
+        current = queue.popleft()
+        reachable_tiles_from_player.add(current)
+        
+        x, y = current
+        for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+            neighbor = (x + dx, y + dy)
+            if (0 <= neighbor[1] < rows and 0 <= neighbor[0] < cols and 
+                tiles[neighbor[1]][neighbor[0]] == 0 and neighbor not in visited):
+                visited.add(neighbor)
+                queue.append(neighbor)
+
+    # Kiểm tra xem lối ra có nằm trong các ô có thể đến không
+    exit_pos = (EXIT_TILE_X, EXIT_TILE_Y + 1)
+    if exit_pos not in reachable_tiles_from_player:
+        # Nếu đường đi vừa bị chặn, bắt đầu đếm giờ
+        if not is_path_blocked: 
+            path_warning_timer = pygame.time.get_ticks()
+        is_path_blocked = True
+    else:
+        is_path_blocked = False
+
+def draw_blocked_path_warning(screen):
+    """Vẽ cảnh báo và tô đỏ toàn bộ khu vực bị chặn."""
+    WARNING_DURATION = 2500 # Thời gian hiển thị text cảnh báo
+
+    if is_path_blocked:
+        # --- Vẽ text cảnh báo ở trên ---
+        if pygame.time.get_ticks() - path_warning_timer < WARNING_DURATION:
+            font = pygame.font.SysFont('Arial', 24, bold=True)
+            text_surf = font.render("WARNING: Path to exit is blocked!", True, (255, 255, 255))
+            panel_rect = text_surf.get_rect(center=(screen.get_width() / 2, 30))
+            panel_rect.inflate_ip(20, 10)
+            panel_surf = pygame.Surface(panel_rect.size, pygame.SRCALPHA)
+            panel_surf.fill((200, 0, 0, 180))
+            screen.blit(panel_surf, panel_rect)
+            screen.blit(text_surf, text_surf.get_rect(center=panel_rect.center))
+
+        # --- Tô đỏ toàn bộ khu vực không thể tiếp cận ---
+        rows, cols = len(tiles), len(tiles[0])
+        highlight_surf = pygame.Surface((config.CELL_SIZE, config.CELL_SIZE), pygame.SRCALPHA)
+        
+        # Tạo hiệu ứng nhấp nháy cho màu highlight
+        alpha = 100 + 60 * math.sin(pygame.time.get_ticks() * 0.005)
+        highlight_surf.fill((255, 0, 0, alpha))
+
+        for y in range(rows):
+            for x in range(cols):
+                # Nếu là ô đi được NHƯNG không nằm trong danh sách có thể đến
+                if tiles[y][x] == 0 and (x, y) not in reachable_tiles_from_player:
+                    screen.blit(highlight_surf, (x * config.CELL_SIZE, y * config.CELL_SIZE))
+                    
 # =======================================================================================
 # LOGIC CHÍNH CỦA GAME
 # =======================================================================================
@@ -405,15 +479,20 @@ def run_game_loop(screen):
     global GAME_STATE, STATS_PANEL_VISIBLE, tiles, GUARDS_VISIBLE
     running = True
     clock = pygame.time.Clock()
+    last_edited_tile = None
 
     while running:
         clock.tick(config.FPS)
         
+        # --- XỬ LÝ SỰ KIỆN (INPUT) ---
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return "QUIT"
 
-            # Xử lý input khi đang ở màn hình chọn thuật toán Replay
+            if event.type == pygame.MOUSEBUTTONUP:
+                if event.button == 1:
+                    last_edited_tile = None
+            
             if GAME_STATE == REPLAY_SELECT_STATE:
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     algo_buttons = draw_replay_menu(screen)
@@ -424,7 +503,6 @@ def run_game_loop(screen):
                             break
                 continue
 
-            # Xử lý input khi đang ở màn hình Thắng/Thua
             if GAME_STATE in [WIN_STATE, LOSE_STATE]:
                 if player and player.pathfinding_stats:
                     is_duplicate = any(p_stat['name'] == player.pathfinding_stats['name'] for p_stat in replay_stats_history)
@@ -454,14 +532,12 @@ def run_game_loop(screen):
                             return "BACK_TO_MENU"
                 continue
             
-            # Xử lý input bàn phím trong game
             if event.type == pygame.KEYDOWN:
                 if event.key == EDIT_TOGGLE_KEY:
                     GAME_STATE = EDIT_STATE if GAME_STATE == "GAME" else "GAME"
                 if event.key == pygame.K_ESCAPE:
                     GAME_STATE = "PAUSED" if GAME_STATE == "GAME" else "GAME"
 
-            # Xử lý input chuột trong game
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if GAME_STATE == "GAME":
                     if GEAR_RECT and GEAR_RECT.collidepoint(event.pos): GAME_STATE = "PAUSED"
@@ -476,11 +552,12 @@ def run_game_loop(screen):
                         mx, my = pygame.mouse.get_pos()
                         tile_x, tile_y = mx // config.CELL_SIZE, my // config.CELL_SIZE
                         if 0 <= tile_y < len(tiles) and 0 <= tile_x < len(tiles[0]):
-                            if (tile_x, tile_y) not in [(1,1), (EXIT_TILE_X, EXIT_TILE_Y), (EXIT_TILE_X, EXIT_TILE_Y+1)]:
+                            if (tile_x, tile_y) not in [(1,1), (EXIT_TILE_X, EXIT_TILE_Y), (EXIT_TILE_X, EXIT_TILE_Y + 1)]:
                                 tiles[tile_y][tile_x] = 1 - tiles[tile_y][tile_x]
                                 invalidate_all_ai_paths()
+                                update_path_validity()
+                                last_edited_tile = (tile_x, tile_y)
 
-            # Xử lý menu pause
             if GAME_STATE == "PAUSED":
                 action = in_game_menu.handle_input(event)
                 if action == "RESUME":
@@ -488,9 +565,22 @@ def run_game_loop(screen):
                 elif action == "BACK_TO_MENU":
                     return "BACK_TO_MENU"
             
-            # Xử lý di chuyển của người chơi
             if GAME_STATE == "GAME" and player and not player.ai_mode:
                 player.handle_input()
+        
+        if GAME_STATE == EDIT_STATE:
+            mouse_buttons = pygame.mouse.get_pressed()
+            if mouse_buttons[0]:
+                mx, my = pygame.mouse.get_pos()
+                tile_x, tile_y = mx // config.CELL_SIZE, my // config.CELL_SIZE
+                current_tile = (tile_x, tile_y)
+                if current_tile != last_edited_tile:
+                    if 0 <= tile_y < len(tiles) and 0 <= tile_x < len(tiles[0]):
+                        if current_tile not in [(1,1), (EXIT_TILE_X, EXIT_TILE_Y), (EXIT_TILE_X, EXIT_TILE_Y + 1)]:
+                            tiles[tile_y][tile_x] = 1 - tiles[tile_y][tile_x]
+                            invalidate_all_ai_paths()
+                            update_path_validity()
+                            last_edited_tile = current_tile
 
         # --- CẬP NHẬT LOGIC GAME ---
         if GAME_STATE == "GAME":
@@ -513,6 +603,7 @@ def run_game_loop(screen):
         # --- VẼ MỌI THỨ LÊN MÀN HÌNH ---
         screen.blit(game_assets['backgrounds'][current_map_index], (0, 0))
         render_maze(screen, tiles, game_assets['maps'][current_map_index])
+        
         if player:
             draw_footprints(screen, player, game_assets['footprint'])
 
@@ -534,6 +625,7 @@ def run_game_loop(screen):
             draw_pause_menu(screen, in_game_menu)
         elif GAME_STATE == EDIT_STATE:
             draw_edit_mode_overlay(screen)
+            draw_blocked_path_warning(screen)
         elif GAME_STATE in [WIN_STATE, LOSE_STATE]:
             message = "ESCAPE SUCCESS!" if GAME_STATE == WIN_STATE else "YOU WERE CAUGHT!"
             color = (50, 255, 50) if GAME_STATE == WIN_STATE else (255, 50, 50)
