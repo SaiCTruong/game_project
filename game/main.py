@@ -97,44 +97,73 @@ def load_game_assets(screen):
 # CÁC HÀM VẼ UI (NÚT BẤM, BẢNG, LỚP PHỦ)
 # =======================================================================================
 
+def draw_button_with_label(screen, rect, icon_text, label_text, color, is_active=True, icon_font_size=18, label_font_size=15):
+    """Vẽ một nút tròn với icon và một nhãn chữ có đổ bóng ở trên."""
+    # Xác định màu sắc dựa trên trạng thái active
+    btn_color = color if is_active else (80, 80, 80)
+    
+    # Vẽ nút tròn
+    pygame.draw.circle(screen, btn_color, rect.center, rect.width // 2, 0)
+    pygame.draw.circle(screen, (50, 50, 50), rect.center, rect.width // 2, 2)
+
+    # Vẽ icon bên trong nút (ví dụ: "E", "G", "AI")
+    icon_font = pygame.font.SysFont('Arial', icon_font_size, bold=True)
+    icon_surf = icon_font.render(icon_text, True, (0, 0, 0) if icon_text != "AI" else (255, 255, 255))
+    screen.blit(icon_surf, icon_surf.get_rect(center=rect.center))
+    
+    # Vẽ nhãn chữ với hiệu ứng đổ bóng để dễ đọc hơn
+    label_font = pygame.font.SysFont('Arial', label_font_size, bold=True)
+    
+    # 1. Vẽ bóng (chữ màu đen, lệch 2 pixel)
+    shadow_surf = label_font.render(label_text, True, (0, 0, 0))
+    shadow_rect = shadow_surf.get_rect(midbottom=rect.midtop)
+    shadow_rect.y -= 5 # Khoảng cách với nút
+    shadow_rect.x += 2 # Độ lệch bóng
+    shadow_rect.y += 2 # Độ lệch bóng
+    screen.blit(shadow_surf, shadow_rect)
+
+    # 2. Vẽ chữ chính (màu trắng)
+    label_surf = label_font.render(label_text, True, (255, 255, 255))
+    label_rect = label_surf.get_rect(midbottom=rect.midtop)
+    label_rect.y -= 5  # Khoảng cách với nút
+    screen.blit(label_surf, label_rect)
+
 def draw_gear_button(screen):
-    """Vẽ nút Pause (bánh răng)."""
+    """Vẽ nút Pause."""
     global GEAR_RECT
     screen_w, _ = screen.get_size()
-    margin = 10
-    GEAR_RECT = pygame.Rect(screen_w - GEAR_SIZE - margin, margin, GEAR_SIZE, GEAR_SIZE)
-    pygame.draw.circle(screen, (150, 150, 150), GEAR_RECT.center, GEAR_SIZE // 2, 0)
-    pygame.draw.circle(screen, (50, 50, 50), GEAR_RECT.center, GEAR_SIZE // 2, 2)
-    font = pygame.font.SysFont('Arial', 18, bold=True)
-    text = font.render("II", True, (0, 0, 0))
-    screen.blit(text, text.get_rect(center=GEAR_RECT.center))
+    button_size = 40
+    block_width = 110 # Tổng chiều rộng của nút + khoảng trống
+    y_pos = 40 
+    
+    x_pos = screen_w - block_width * 1
+    GEAR_RECT = pygame.Rect(x_pos, y_pos, button_size, button_size)
+    draw_button_with_label(screen, GEAR_RECT, "II", "Pause (Esc)", (150, 150, 150), icon_font_size=20)
 
 def draw_edit_button(screen):
-    """Vẽ nút Edit (chữ E)."""
+    """Vẽ nút Edit."""
     global EDIT_BUTTON_RECT
     screen_w, _ = screen.get_size()
-    margin = 10
-    edit_button_x = screen_w - GEAR_SIZE - margin - EDIT_BUTTON_SIZE - margin
-    EDIT_BUTTON_RECT = pygame.Rect(edit_button_x, margin, EDIT_BUTTON_SIZE, EDIT_BUTTON_SIZE)
-    pygame.draw.circle(screen, (150, 150, 150), EDIT_BUTTON_RECT.center, EDIT_BUTTON_SIZE // 2, 0)
-    pygame.draw.circle(screen, (50, 50, 50), EDIT_BUTTON_RECT.center, EDIT_BUTTON_SIZE // 2, 2)
-    font = pygame.font.SysFont('Arial', 18, bold=True)
-    text = font.render("E", True, (0, 0, 0))
-    screen.blit(text, text.get_rect(center=EDIT_BUTTON_RECT.center))
+    button_size = 40
+    block_width = 110
+    y_pos = 40
+    
+    x_pos = screen_w - block_width * 2
+    EDIT_BUTTON_RECT = pygame.Rect(x_pos, y_pos, button_size, button_size)
+    draw_button_with_label(screen, EDIT_BUTTON_RECT, "E", "Edit Maze (E)", (150, 150, 150))
 
 def draw_hide_guards_button(screen):
-    """Vẽ nút ẩn/hiện lính gác (chữ G)."""
+    """Vẽ nút ẩn/hiện lính gác."""
     global HIDE_GUARDS_BUTTON_RECT
     screen_w, _ = screen.get_size()
-    margin = 10
-    hide_button_x = screen_w - GEAR_SIZE - margin - EDIT_BUTTON_SIZE - margin - HIDE_GUARDS_BUTTON_SIZE - margin
-    HIDE_GUARDS_BUTTON_RECT = pygame.Rect(hide_button_x, margin, HIDE_GUARDS_BUTTON_SIZE, HIDE_GUARDS_BUTTON_SIZE)
-    color = (150, 150, 150) if GUARDS_VISIBLE else (80, 80, 80)
-    pygame.draw.circle(screen, color, HIDE_GUARDS_BUTTON_RECT.center, HIDE_GUARDS_BUTTON_SIZE // 2, 0)
-    pygame.draw.circle(screen, (50, 50, 50), HIDE_GUARDS_BUTTON_RECT.center, HIDE_GUARDS_BUTTON_SIZE // 2, 2)
-    font = pygame.font.SysFont('Arial', 18, bold=True)
-    text = font.render("G", True, (0, 0, 0))
-    screen.blit(text, text.get_rect(center=HIDE_GUARDS_BUTTON_RECT.center))
+    button_size = 40
+    block_width = 110
+    y_pos = 40
+    
+    x_pos = screen_w - block_width * 3
+    HIDE_GUARDS_BUTTON_RECT = pygame.Rect(x_pos, y_pos, button_size, button_size)
+    draw_button_with_label(screen, HIDE_GUARDS_BUTTON_RECT, "G", "Toggle Guards", (150, 150, 150), is_active=GUARDS_VISIBLE)
+    
     if not GUARDS_VISIBLE:
         pygame.draw.line(screen, (255, 0, 0), HIDE_GUARDS_BUTTON_RECT.topleft, HIDE_GUARDS_BUTTON_RECT.bottomright, 3)
 
@@ -142,15 +171,15 @@ def draw_ai_button(screen):
     """Vẽ nút bật/tắt AI."""
     global AI_BUTTON_RECT
     screen_w, _ = screen.get_size()
-    margin = 10
-    ai_button_x = screen_w - GEAR_SIZE - margin - EDIT_BUTTON_SIZE - margin - HIDE_GUARDS_BUTTON_SIZE - margin - AI_BUTTON_SIZE - margin
-    AI_BUTTON_RECT = pygame.Rect(ai_button_x, margin, AI_BUTTON_SIZE, AI_BUTTON_SIZE)
-    color = (100, 180, 255) if player and player.ai_mode else (80, 80, 80)
-    pygame.draw.circle(screen, color, AI_BUTTON_RECT.center, AI_BUTTON_SIZE // 2, 0)
-    pygame.draw.circle(screen, (50, 50, 50), AI_BUTTON_RECT.center, AI_BUTTON_SIZE // 2, 2)
-    font = pygame.font.SysFont('Arial', 14, bold=True)
-    text = font.render("AI", True, (255, 255, 255))
-    screen.blit(text, text.get_rect(center=AI_BUTTON_RECT.center))
+    button_size = 40
+    block_width = 110
+    y_pos = 40
+    
+    x_pos = screen_w - block_width * 4
+    AI_BUTTON_RECT = pygame.Rect(x_pos, y_pos, button_size, button_size)
+    is_ai_active = player and player.ai_mode
+    color = (100, 180, 255) if is_ai_active else (80, 80, 80)
+    draw_button_with_label(screen, AI_BUTTON_RECT, "AI", "Toggle AI", color, is_active=is_ai_active, icon_font_size=16)
     
 def draw_edit_mode_overlay(screen):
     """Vẽ lớp phủ khi ở chế độ Edit."""
@@ -248,7 +277,7 @@ def draw_stats_button(screen):
 
 def draw_stats_panel(screen, stats_history):
     """Vẽ bảng so sánh thông tin của các thuật toán đã chạy."""
-    panel_w, panel_h = 850, 400  # <<< Tăng chiều rộng bảng
+    panel_w, panel_h = 850, 400
     panel_rect = pygame.Rect((screen.get_width() - panel_w) / 2, (screen.get_height() - panel_h) / 2, panel_w, panel_h)
 
     overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
@@ -265,17 +294,15 @@ def draw_stats_panel(screen, stats_history):
     title_text = font_title.render("Algorithm Comparison", True, (255, 255, 0))
     screen.blit(title_text, title_text.get_rect(centerx=panel_rect.centerx, y=panel_rect.top + 20))
 
-    # <<< THAY ĐỔI 1: Cập nhật header và vị trí các cột >>>
     headers = ["Algorithm", "Steps", "Time (ms)", "Generated", "Expanded"]
     col_positions = [
-        panel_rect.left + 30,   # Algorithm
-        panel_rect.left + 320,  # Steps
-        panel_rect.left + 430,  # Time
-        panel_rect.left + 590,  # Generated
-        panel_rect.left + 720   # Expanded
+        panel_rect.left + 30,
+        panel_rect.left + 320,
+        panel_rect.left + 430,
+        panel_rect.left + 590,
+        panel_rect.left + 720
     ]
     
-    # Vẽ header
     header_y = panel_rect.top + 80
     for i, header in enumerate(headers):
         header_surf = font_header.render(header, True, (255, 255, 255))
@@ -283,12 +310,10 @@ def draw_stats_panel(screen, stats_history):
         
     pygame.draw.line(screen, (150, 150, 150), (panel_rect.left + 20, header_y + 30), (panel_rect.right - 20, header_y + 30), 2)
 
-    # Vẽ các dòng dữ liệu
     row_y_start = header_y + 50
     for i, stats in enumerate(stats_history):
         row_y = row_y_start + i * 35
         
-      
         data = [
             str(stats.get('name', 'N/A')),
             str(stats.get('path_length', 0)),
@@ -301,7 +326,6 @@ def draw_stats_panel(screen, stats_history):
             item_surf = font_row.render(item, True, (210, 210, 210))
             screen.blit(item_surf, (col_positions[j], row_y))
             
-    # Nút đóng 'X' (giữ nguyên)
     close_btn_size = 30
     close_btn_rect = pygame.Rect(panel_rect.right - close_btn_size - 10, panel_rect.top + 10, close_btn_size, close_btn_size)
     pygame.draw.rect(screen, (200, 50, 50), close_btn_rect, border_radius=5)
@@ -326,27 +350,20 @@ def draw_replay_button(screen):
     text = font.render("Replay", True, (255, 255, 255))
     screen.blit(text, text.get_rect(center=REPLAY_BUTTON_RECT.center))
 
-
 def draw_replay_menu(screen):
-    
     algorithms = list(PATHFINDING_ALGORITHMS.keys())
     num_algos = len(algorithms)
 
-
-    top_padding = 80  # Khoảng trống cho tiêu đề
-    bottom_padding = 40 # Khoảng trống ở dưới
-    button_spacing = 55 # Khoảng cách giữa các nút
+    top_padding = 80
+    bottom_padding = 40
+    button_spacing = 55
     
     panel_w = 500
-    # Tính chiều cao cần thiết: top + (số nút * khoảng cách) + bottom
     panel_h = top_padding + (num_algos * button_spacing) + bottom_padding
-    
-    # Đảm bảo panel không cao hơn màn hình
     panel_h = min(panel_h, screen.get_height() * 0.95)
 
     panel_rect = pygame.Rect((screen.get_width() - panel_w) / 2, (screen.get_height() - panel_h) / 2, panel_w, panel_h)
     
-    # Phần code vẽ còn lại giữ nguyên
     overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 220))
     screen.blit(overlay, (0, 0))
@@ -366,7 +383,6 @@ def draw_replay_menu(screen):
     for i, algo_name in enumerate(algorithms):
         btn_rect = pygame.Rect(panel_rect.left + 50, panel_rect.top + 80 + i * button_spacing, panel_w - 100, 45)
         
-        # Chỉ vẽ nút nếu nó nằm trong phạm vi panel (phòng trường hợp quá nhiều nút)
         if panel_rect.contains(btn_rect):
             is_hover = btn_rect.collidepoint(mouse_pos)
             btn_color = (100, 100, 100) if is_hover else (70, 70, 70)
@@ -377,31 +393,23 @@ def draw_replay_menu(screen):
             
     return button_rects
 
-
 def draw_footprints(screen, player, footprint_img):
     """Vẽ tất cả dấu chân đã được lưu lại của người chơi."""
     if not player or not player.footprints:
         return
 
     for pos in player.footprints:
-        # Tính toán vị trí để vẽ dấu chân ở giữa ô
         pos_x = pos[0] * config.CELL_SIZE + (config.CELL_SIZE - footprint_img.get_width()) / 2
         pos_y = pos[1] * config.CELL_SIZE + (config.CELL_SIZE - footprint_img.get_height()) / 2
-        
         screen.blit(footprint_img, (pos_x, pos_y))
 
-# trong file main.py
-
 def update_path_validity():
-
     global is_path_blocked, path_warning_timer, reachable_tiles_from_player
     if not player or not tiles:
         return
 
-    # Reset lại tập hợp
     reachable_tiles_from_player.clear()
     
-    # Sử dụng BFS để thực hiện flood-fill
     queue = deque([player.get_tile_position()])
     visited = {player.get_tile_position()}
     
@@ -419,10 +427,8 @@ def update_path_validity():
                 visited.add(neighbor)
                 queue.append(neighbor)
 
-    # Kiểm tra xem lối ra có nằm trong các ô có thể đến không
     exit_pos = (EXIT_TILE_X, EXIT_TILE_Y + 1)
     if exit_pos not in reachable_tiles_from_player:
-        # Nếu đường đi vừa bị chặn, bắt đầu đếm giờ
         if not is_path_blocked: 
             path_warning_timer = pygame.time.get_ticks()
         is_path_blocked = True
@@ -431,10 +437,9 @@ def update_path_validity():
 
 def draw_blocked_path_warning(screen):
     """Vẽ cảnh báo và tô đỏ toàn bộ khu vực bị chặn."""
-    WARNING_DURATION = 2500 # Thời gian hiển thị text cảnh báo
+    WARNING_DURATION = 2500
 
     if is_path_blocked:
-        # --- Vẽ text cảnh báo ở trên ---
         if pygame.time.get_ticks() - path_warning_timer < WARNING_DURATION:
             font = pygame.font.SysFont('Arial', 24, bold=True)
             text_surf = font.render("WARNING: Path to exit is blocked!", True, (255, 255, 255))
@@ -445,17 +450,14 @@ def draw_blocked_path_warning(screen):
             screen.blit(panel_surf, panel_rect)
             screen.blit(text_surf, text_surf.get_rect(center=panel_rect.center))
 
-        # --- Tô đỏ toàn bộ khu vực không thể tiếp cận ---
         rows, cols = len(tiles), len(tiles[0])
         highlight_surf = pygame.Surface((config.CELL_SIZE, config.CELL_SIZE), pygame.SRCALPHA)
         
-        # Tạo hiệu ứng nhấp nháy cho màu highlight
         alpha = 100 + 60 * math.sin(pygame.time.get_ticks() * 0.005)
         highlight_surf.fill((255, 0, 0, alpha))
 
         for y in range(rows):
             for x in range(cols):
-                # Nếu là ô đi được NHƯNG không nằm trong danh sách có thể đến
                 if tiles[y][x] == 0 and (x, y) not in reachable_tiles_from_player:
                     screen.blit(highlight_surf, (x * config.CELL_SIZE, y * config.CELL_SIZE))
                     
@@ -673,12 +675,12 @@ def main():
             if GAME_STATE == "MENU":
                 action, difficulty, algorithm, map_idx = menu.handle_input(event)
                 if action == "PLAY":
-                    replay_stats_history.clear() # Xóa lịch sử so sánh khi bắt đầu game mới
+                    replay_stats_history.clear()
                     new_grid = generate_maze(config.MAZE_COLS, config.MAZE_ROWS)
                     new_tiles = maze_to_tiles(new_grid, config.MAZE_COLS, config.MAZE_ROWS)
                     if (EXIT_TILE_Y + 1) < len(new_tiles):
                         new_tiles[EXIT_TILE_Y + 1][EXIT_TILE_X] = 0
-                    current_maze_tiles = [row[:] for row in new_tiles] # Lưu lại mê cung để chơi lại
+                    current_maze_tiles = [row[:] for row in new_tiles]
                     setup_new_game(new_tiles, difficulty, algorithm, map_idx, screen)
                     GAME_STATE = "GAME"
                 elif action == "QUIT":
